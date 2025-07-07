@@ -1,13 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
-
-import 'package:easytime_online/client_codes_fetch_api.dart';
 import 'package:easytime_online/dashboard_screen.dart';
 import 'package:easytime_online/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/gestures.dart';
-import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -85,11 +80,11 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.grey.shade100),
+            side: const BorderSide(color: Color(0xFFE0E0E0)),
           ),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -137,8 +132,8 @@ class MyApp extends StatelessWidget {
         ),
         // Scrolling physics for better performance
         scrollbarTheme: ScrollbarThemeData(
-          thumbColor: MaterialStateProperty.all(Colors.grey.shade300),
-          thickness: MaterialStateProperty.all(4),
+          thumbColor: WidgetStateProperty.all(Colors.grey.shade300),
+          thickness: WidgetStateProperty.all(4),
           radius: const Radius.circular(8),
         ),
       ),
@@ -202,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Try to verify client code with new API
       try {
         final response = await http.post(
-          Uri.parse('http://10.251.246.37:81/api/verify-client-code'),
+          Uri.parse('http://att.easytimeonline.in:121/api/verify-client-code'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'client_code': savedCode}),
         );
@@ -218,7 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
             baseApiUrl = data['url'];
           } else {
             // If neither field exists, use default
-            baseApiUrl = 'http://10.251.246.37:81';
+            baseApiUrl = 'http://att.easytimeonline.in:121';
           }
 
           // Remove trailing slash if present
@@ -246,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         } else {
           setState(() {
-            clientApiUrl = 'http://10.251.246.37:81';
+            clientApiUrl = 'http://att.easytimeonline.in:121';
           });
         }
       }
@@ -285,23 +280,23 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // Direct API call to verify client code
       final response = await http.post(
-        Uri.parse('http://10.251.246.37:81/api/verify-client-code'),
+        Uri.parse('http://att.easytimeonline.in:121/api/verify-client-code'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'client_code': enteredCode}),
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final responseData = json.decode(response.body);
 
         // Extract the API URL from the response
         String baseApiUrl;
-        if (data.containsKey('api_url')) {
-          baseApiUrl = data['api_url'];
-        } else if (data.containsKey('url')) {
-          baseApiUrl = data['url'];
+        if (responseData.containsKey('api_url')) {
+          baseApiUrl = responseData['api_url'];
+        } else if (responseData.containsKey('url')) {
+          baseApiUrl = responseData['url'];
         } else {
           // If neither field exists, use default
-          baseApiUrl = 'http://10.251.246.37:81';
+          baseApiUrl = 'http://att.easytimeonline.in:121';
         }
 
         // Remove trailing slash if present
@@ -321,11 +316,13 @@ class _HomeScreenState extends State<HomeScreen> {
         await prefs.setString('client_code', enteredCode);
         await prefs.setString('base_api_url', baseApiUrl);
       } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(currentContext).showSnackBar(
           const SnackBar(content: Text('Error: Invalid Client Code')),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(currentContext).showSnackBar(
         const SnackBar(content: Text('Error: Could not verify Client Code')),
       );
@@ -364,7 +361,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        // Removing unused responseData variable
+        // final responseData = json.decode(response.body);
 
         SharedPreferences prefs = await SharedPreferences.getInstance();
         if (rememberMe) {
@@ -377,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
           await prefs.remove('remember_me');
         }
 
+        if (!mounted) return;
         Navigator.pushReplacement(
           currentContext,
           MaterialPageRoute(
@@ -384,13 +383,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       } else {
-        final data = json.decode(response.body);
+        final responseData = json.decode(response.body);
 
+        if (!mounted) return;
         ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? 'Login failed')),
+          SnackBar(content: Text(responseData['message'] ?? 'Login failed')),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(currentContext).showSnackBar(
         const SnackBar(
           content: Text('Error: Login failed. Please check your connection.'),
