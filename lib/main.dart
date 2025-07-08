@@ -172,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String cleartext = 'CLEAR CACHE';
   String? clientApiUrl;
   bool rememberMe = false;
+  bool _showPassword = false; // Add this line to track password visibility
 
   @override
   void initState() {
@@ -186,13 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
     String? savedPassword = prefs.getString('user_password');
     String? savedBaseApiUrl = prefs.getString('base_api_url');
     bool? savedRemember = prefs.getBool('remember_me') ?? false;
-
-    print('Loading saved preferences:');
-    print('- client_code: ${savedCode ?? 'not found'}');
-    print('- user_code: ${savedUserCode != null ? 'found' : 'not found'}');
-    print('- user_password: ${savedPassword != null ? 'found' : 'not found'}');
-    print('- base_api_url: ${savedBaseApiUrl ?? 'not found'}');
-    print('- remember_me: $savedRemember');
 
     if (savedCode != null) {
       setState(() {
@@ -210,7 +204,6 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             clientApiUrl = result['api_url'];
           });
-          print('Updated clientApiUrl to: ${result['api_url']}');
 
           // Test if the login URL is accessible
           bool isLoginUrlAccessible = await _testLoginUrlAvailability();
@@ -229,7 +222,6 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             clientApiUrl = savedBaseApiUrl;
           });
-          print('Using previously saved base_api_url: $savedBaseApiUrl');
 
           // Test if the saved URL is accessible
           bool isSavedUrlAccessible = await _testLoginUrlAvailability();
@@ -245,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
       } catch (e) {
-        print('Error re-verifying client code: $e');
         if (savedBaseApiUrl != null) {
           setState(() {
             clientApiUrl = savedBaseApiUrl;
@@ -291,9 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final BuildContext currentContext = context;
 
     if (enteredCode.isEmpty) {
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        const SnackBar(content: Text('Please enter a client code')),
-      );
+      _showCustomToast('Please enter a client code', isSuccess: false);
       return;
     }
 
@@ -329,110 +318,50 @@ class _HomeScreenState extends State<HomeScreen> {
           clientApiUrl = apiUrl;
         });
 
-        print('✅ Client code verified. Using API URL: $apiUrl');
-
-        // Show success message
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(
-            content: Text('Client code verified. Connected to: $apiUrl'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-
         // Test if the login URL is actually accessible
         bool isLoginUrlAccessible = await _testLoginUrlAvailability();
 
         if (!isLoginUrlAccessible && mounted) {
-          ScaffoldMessenger.of(currentContext).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Warning: Login server might not be accessible. Check your connection.'),
-              backgroundColor: Colors.orange,
-              duration: Duration(seconds: 5),
-            ),
+          _showCustomToast(
+            'Warning: Login server might not be accessible. Check your connection.',
+            isSuccess: false,
           );
         }
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Invalid client code'),
-            backgroundColor: Colors.red,
-          ),
+        _showCustomToast(
+          result['message'] ?? 'Invalid client code',
+          isSuccess: false,
         );
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(currentContext); // Close loading dialog
-      ScaffoldMessenger.of(currentContext).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
     }
   }
 
   void login() async {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
     String username = _usernameController.text.trim();
     String password = _passwordController.text;
 
     // Validation checks
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill all fields'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showCustomToast('Please fill all fields', isSuccess: false);
       return;
     }
 
-    // Show debug option dialog
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Login Method Selection'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Choose login method:'),
-            SizedBox(height: 8),
-            Text('• Normal Login: Uses the ApiService.directLogin method'),
-            Text('• Debug Login: Shows raw request details before sending'),
-            Text('• Raw HTTP: Uses direct http package call'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _normalLogin();
-            },
-            child: const Text('Normal Login'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _showRawApiRequestInfo();
-            },
-            child: const Text('Debug Login'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _ensureProperLoginRequest();
-            },
-            child: const Text('Raw HTTP'),
-          ),
-        ],
-      ),
-    );
+    // Directly use normal login without showing debug dialog
+    _normalLogin();
   }
 
   void _normalLogin() async {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
     String username = _usernameController.text.trim();
     String password = _passwordController.text;
 
@@ -453,8 +382,8 @@ class _HomeScreenState extends State<HomeScreen> {
         clientApiUrl = await ApiService.getClientApiUrl();
       }
 
-      // Call API service
-      final result = await ApiService.directLogin(
+      // Call API service with our new PHP API login method
+      final result = await ApiService.loginWithPhpApi(
         clientApiUrl!,
         username,
         password,
@@ -468,14 +397,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final String message = result['message'] ??
           (loginSuccess ? 'Login successful' : 'Login failed');
 
-      // Show feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: loginSuccess ? Colors.green : Colors.red,
-          duration: Duration(seconds: loginSuccess ? 2 : 4),
-        ),
-      );
+      // Show better styled toast message
+      _showCustomToast(message, isSuccess: loginSuccess);
 
       // If login successful, navigate to dashboard
       if (loginSuccess) {
@@ -490,89 +413,78 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         }
 
+        // Extract user data from response
+        Map<String, dynamic> userData = {};
+        if (result['response_data'].containsKey('user_data')) {
+          userData = result['response_data']['user_data'];
+        }
+
         // Navigate to dashboard
         Future.delayed(const Duration(seconds: 1), () {
           if (mounted) {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => DashboardScreen(userName: username),
+                builder: (context) => DashboardScreen(
+                  userName: userData['emp_name'] ?? username,
+                ),
               ),
             );
           }
         });
-      } else {
-        // Show more detailed error dialog
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Login Failed'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Error: $message'),
-                  const SizedBox(height: 12),
-                  const Text('Technical Details:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Response Code: ${result['response_code']}'),
-                  const SizedBox(height: 8),
-                  const Text('Response Data:'),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: SelectableText(
-                      '${result['response_data']}',
-                      style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('Request Sent:'),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: SelectableText(
-                      '${result['request_sent']}',
-                      style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        );
       }
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
 
-      // Show error
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Login error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error toast
+      _showCustomToast('Login error: ${e.toString()}', isSuccess: false);
     }
+  }
+
+  // Custom toast message with better styling
+  void _showCustomToast(String message, {required bool isSuccess}) {
+    // Dismiss keyboard first
+    FocusScope.of(context).unfocus();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                isSuccess ? Icons.check_circle : Icons.error,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor:
+            isSuccess ? Colors.green.shade800 : Colors.red.shade800,
+        duration: Duration(seconds: isSuccess ? 2 : 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height * 0.5,
+          left: 10,
+          right: 10,
+        ),
+        elevation: 6,
+      ),
+    );
   }
 
   // Function to display raw request/response information for debugging
@@ -581,22 +493,13 @@ class _HomeScreenState extends State<HomeScreen> {
     String password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter username and password'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showCustomToast('Please enter username and password', isSuccess: false);
       return;
     }
 
     if (clientApiUrl == null || clientApiUrl!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('API URL not set. Please verify client code'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showCustomToast('API URL not set. Please verify client code',
+          isSuccess: false);
       return;
     }
 
@@ -617,6 +520,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // JSON encode request body
     final String jsonRequestBody = jsonEncode(requestBody);
+
+    // Verify proper JSON encoding
 
     showDialog(
       context: context,
@@ -653,6 +558,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 4),
               Text('Body Keys: ${requestBody.keys.toList()}'),
+              Text('Contains username: ${jsonRequestBody.contains(username)}'),
+              Text('Contains password: ${jsonRequestBody.contains(password)}'),
               const SizedBox(height: 8),
               const Text('Send this request to the API?'),
             ],
@@ -677,6 +584,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Function to send a raw API request
   void _sendRawApiRequest(String url, String jsonRequestBody) {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -686,6 +596,13 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+
+    try {
+      // Verify if the body is valid JSON
+      final decodedBody = json.decode(jsonRequestBody);
+    } catch (e) {
+      // Error parsing body
+    }
 
     // Use direct http package to make request
     http
@@ -702,129 +619,45 @@ class _HomeScreenState extends State<HomeScreen> {
       Navigator.pop(context); // Close loading dialog
 
       // Parse response
-      String formattedResponse = '';
+      String responseMessage = '';
       bool isJsonResponse = true;
       Map<String, dynamic> responseData = {};
+      bool isSuccess = false;
 
       try {
         responseData = json.decode(response.body);
-        formattedResponse =
-            const JsonEncoder.withIndent('  ').convert(responseData);
+        isSuccess = responseData['success'] == true;
+        responseMessage = responseData['message'] ?? 'No message provided';
       } catch (e) {
         isJsonResponse = false;
-        formattedResponse = response.body;
+        responseMessage = 'Could not parse server response';
       }
 
-      // Show response dialog
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('API Response (${response.statusCode})'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Status: ${response.statusCode}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color:
-                        response.statusCode < 400 ? Colors.green : Colors.red,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text('Headers:'),
-                for (var entry in response.headers.entries)
-                  Text('  ${entry.key}: ${entry.value}'),
-                const SizedBox(height: 8),
-                const Text('Response Body:'),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: SelectableText(
-                    formattedResponse,
-                    style:
-                        const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                  ),
-                ),
-                if (isJsonResponse) ...[
-                  const SizedBox(height: 8),
-                  const Text('Response Keys:'),
-                  Text(responseData.keys.toList().toString()),
-                ],
-                const SizedBox(height: 16),
-                const Text('Login Successful?',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(
-                  isJsonResponse &&
-                          responseData.containsKey('success') &&
-                          responseData['success'] == true
-                      ? '✅ Yes'
-                      : '❌ No',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isJsonResponse &&
-                            responseData.containsKey('success') &&
-                            responseData['success'] == true
-                        ? Colors.green
-                        : Colors.red,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-            if (isJsonResponse &&
-                responseData.containsKey('success') &&
-                responseData['success'] == true)
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx); // Close dialog
+      // Show toast message
+      _showCustomToast(responseMessage, isSuccess: isSuccess);
 
-                  // Navigate to dashboard
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DashboardScreen(
-                        userName: _usernameController.text.trim(),
-                      ),
-                    ),
-                  );
-                },
-                child: const Text('Go to Dashboard'),
+      // If login successful, navigate to dashboard after a short delay
+      if (isSuccess) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            // Navigate to dashboard
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardScreen(
+                  userName: _usernameController.text.trim(),
+                ),
               ),
-          ],
-        ),
-      );
+            );
+          }
+        });
+      }
     }).catchError((error) {
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
 
-      // Show error dialog
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Request Error'),
-          content: Text('Error sending request: $error'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
+      // Show error toast
+      _showCustomToast('Error sending request: $error', isSuccess: false);
     });
   }
 
@@ -835,19 +668,14 @@ class _HomeScreenState extends State<HomeScreen> {
       final apiUrl = await ApiService.getClientApiUrl();
       final loginUrl = '$apiUrl/api/login';
 
-      print('Testing login URL availability: $loginUrl');
-
       // Send a HEAD request to check if the login endpoint is available
       final response = await http
           .head(Uri.parse(loginUrl))
           .timeout(const Duration(seconds: 5));
 
-      print('Login URL test response: ${response.statusCode}');
-
       // Consider anything below 400 as success
       return response.statusCode < 400;
     } catch (e) {
-      print('Login URL test error: $e');
       return false;
     }
   }
@@ -859,10 +687,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool isLoginUrlAccessible = await _testLoginUrlAvailability();
 
     if (!isLoginUrlAccessible && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Warning: Login server may not be accessible')),
-      );
+      _showCustomToast('Warning: Login server may not be accessible',
+          isSuccess: false);
     }
   }
 
@@ -878,9 +704,6 @@ class _HomeScreenState extends State<HomeScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
       );
-
-      print('Credential validation response: ${response.statusCode}');
-      print('Credential validation body: ${response.body}');
 
       // Check the response
       if (response.statusCode == 200) {
@@ -898,26 +721,211 @@ class _HomeScreenState extends State<HomeScreen> {
           // If none of the success indicators are present, assume failure
           return false;
         } catch (e) {
-          print('Error parsing credential validation response: $e');
           return false;
         }
       }
       return false;
     } catch (e) {
-      print('Credential validation error: $e');
       return false;
     }
   }
 
   // Function to ensure proper login request with credentials
   Future<void> _ensureProperLoginRequest() async {
-    if (clientApiUrl == null || clientApiUrl!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error: API URL not set'),
-          backgroundColor: Colors.red,
+    // Get credentials from text fields
+    String username = _usernameController.text.trim();
+    String password = _passwordController.text;
+
+    // Validate credentials
+    if (username.isEmpty || password.isEmpty) {
+      _showCustomToast('Please enter both username and password',
+          isSuccess: false);
+      return;
+    }
+
+    // Show loading indicator
+    setState(() {
+      buttonText = 'CHECKING...';
+    });
+
+    try {
+      // Make sure we have the API URL
+      if (clientApiUrl == null || clientApiUrl!.isEmpty) {
+        clientApiUrl = await ApiService.getClientApiUrl();
+      }
+
+      // Clean URL
+      String cleanUrl = clientApiUrl!;
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
+
+      // Show dialog with request details
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('PHP API Login Request'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                    'This will attempt multiple login approaches to handle the PHP API parameter issue.',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Text('API URL: $cleanUrl/api/login'),
+                const SizedBox(height: 8),
+                Text('Username: $username'),
+                Text('Password: ${password.replaceAll(RegExp('.'), '*')}'),
+                const SizedBox(height: 16),
+                const Text('Approaches that will be tried:'),
+                const SizedBox(height: 8),
+                const Text('1. Standard form data'),
+                const Text('2. URL query parameters'),
+                const Text(
+                    '3. Malformed parameter name (handling &amp;password)'),
+                const Text('4. Direct GET request'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  buttonText = 'LOGIN';
+                });
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _executePhpApiLogin(cleanUrl, username, password);
+              },
+              child: const Text('Proceed'),
+            ),
+          ],
         ),
       );
+    } catch (e) {
+      setState(() {
+        buttonText = 'LOGIN';
+      });
+      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
+    }
+  }
+
+  // Execute PHP API login with detailed response
+  void _executePhpApiLogin(
+      String apiUrl, String username, String password) async {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
+    // Show loading indicator
+    setState(() {
+      buttonText = 'SENDING...';
+    });
+
+    try {
+      // Call our new PHP API login method
+      final result =
+          await ApiService.loginWithPhpApi(apiUrl, username, password);
+
+      setState(() {
+        buttonText = 'LOGIN';
+      });
+
+      // Determine if login was successful
+      bool isSuccess = result['success'] == true;
+      String message = result['message'] ?? 'Unknown response';
+
+      // Show toast message
+      _showCustomToast(message, isSuccess: isSuccess);
+
+      // If login successful, navigate to dashboard after a short delay
+      if (isSuccess) {
+        // Extract user data from response
+        Map<String, dynamic> userData = {};
+        if (result['response_data'].containsKey('user_data')) {
+          userData = result['response_data']['user_data'];
+        }
+
+        // Navigate to dashboard
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardScreen(
+                  userName: userData['emp_name'] ?? username,
+                ),
+              ),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      setState(() {
+        buttonText = 'LOGIN';
+      });
+      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
+    }
+  }
+
+  void handleButtonPress() {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
+
+    if (!isClientCodeValid) {
+      checkClientCode();
+    } else {
+      login();
+    }
+  }
+
+  // Add debug button to UI
+  Widget _buildDebugButton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        TextButton(
+          onPressed: () {
+            if (isClientCodeValid) {
+              _showRawApiRequestInfo();
+            } else {
+              _showCustomToast('Please verify client code first',
+                  isSuccess: false);
+            }
+          },
+          child: const Text('DEBUG API'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.red,
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            if (isClientCodeValid) {
+              _runApiCompatibilityTest();
+            } else {
+              _showCustomToast('Please verify client code first',
+                  isSuccess: false);
+            }
+          },
+          child: const Text('TEST ALL API FORMATS'),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.orange,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Method to test all possible API request formats to find which one works
+  Future<void> _runApiCompatibilityTest() async {
+    if (clientApiUrl == null || clientApiUrl!.isEmpty) {
+      _showCustomToast('Error: API URL not set', isSuccess: false);
       return;
     }
 
@@ -925,14 +933,12 @@ class _HomeScreenState extends State<HomeScreen> {
     String password = _passwordController.text;
 
     if (username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter username and password'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      _showCustomToast('Please enter username and password', isSuccess: false);
       return;
     }
+
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
 
     // Show loading dialog
     showDialog(
@@ -954,130 +960,179 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Create login URL
       final loginUrl = '$cleanUrl/api/login';
+      final results = <String, Map<String, dynamic>>{};
 
-      // Create request body
-      final Map<String, dynamic> requestBody = {
-        'username': username,
-        'password': password,
-      };
+      // 1. Test standard JSON
+      try {
+        final jsonBody = jsonEncode({
+          'username': username,
+          'password': password,
+        });
 
-      // Encode the request body
-      final String jsonBody = jsonEncode(requestBody);
+        final response = await http
+            .post(
+              Uri.parse(loginUrl),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: jsonBody,
+            )
+            .timeout(const Duration(seconds: 5));
 
-      print('⚠️ DIRECT API REQUEST:');
-      print('⚠️ URL: $loginUrl');
-      print('⚠️ Body: $jsonBody');
-      print('⚠️ Username: $username');
-      print('⚠️ Password length: ${password.length}');
+        results['JSON'] = {
+          'status': response.statusCode,
+          'body': response.body,
+          'success': response.statusCode < 400,
+        };
+      } catch (e) {
+        results['JSON'] = {
+          'status': 'error',
+          'body': e.toString(),
+          'success': false,
+        };
+      }
 
-      // Make direct HTTP request
-      final response = await http
-          .post(
-            Uri.parse(loginUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonBody,
-          )
-          .timeout(const Duration(seconds: 10));
+      // 2. Test form URL encoded
+      try {
+        final formBody =
+            'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
 
-      print('⚠️ DIRECT API RESPONSE:');
-      print('⚠️ Status code: ${response.statusCode}');
-      print('⚠️ Body: ${response.body}');
+        final response = await http
+            .post(
+              Uri.parse(loginUrl),
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+              },
+              body: formBody,
+            )
+            .timeout(const Duration(seconds: 5));
+
+        results['Form-URL'] = {
+          'status': response.statusCode,
+          'body': response.body,
+          'success': response.statusCode < 400,
+        };
+      } catch (e) {
+        results['Form-URL'] = {
+          'status': 'error',
+          'body': e.toString(),
+          'success': false,
+        };
+      }
+
+      // 3. Test multipart form
+      try {
+        final request = http.MultipartRequest('POST', Uri.parse(loginUrl));
+        request.fields['username'] = username;
+        request.fields['password'] = password;
+
+        final streamedResponse =
+            await request.send().timeout(const Duration(seconds: 5));
+        final response = await http.Response.fromStream(streamedResponse);
+
+        results['Multipart'] = {
+          'status': response.statusCode,
+          'body': response.body,
+          'success': response.statusCode < 400,
+        };
+      } catch (e) {
+        results['Multipart'] = {
+          'status': 'error',
+          'body': e.toString(),
+          'success': false,
+        };
+      }
+
+      // 4. Test query parameters
+      try {
+        final queryUrl =
+            '$loginUrl?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+
+        final response = await http.post(
+          Uri.parse(queryUrl),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 5));
+
+        results['Query-Param'] = {
+          'status': response.statusCode,
+          'body': response.body,
+          'success': response.statusCode < 400,
+        };
+      } catch (e) {
+        results['Query-Param'] = {
+          'status': 'error',
+          'body': e.toString(),
+          'success': false,
+        };
+      }
+
+      // 5. Test raw form parameters (no Content-Type)
+      try {
+        final formBody =
+            'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+
+        final response = await http
+            .post(
+              Uri.parse(loginUrl),
+              body: formBody,
+            )
+            .timeout(const Duration(seconds: 5));
+
+        results['Raw-Form'] = {
+          'status': response.statusCode,
+          'body': response.body,
+          'success': response.statusCode < 400,
+        };
+      } catch (e) {
+        results['Raw-Form'] = {
+          'status': 'error',
+          'body': e.toString(),
+          'success': false,
+        };
+      }
 
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
 
-      // Check if response is JSON
-      Map<String, dynamic> responseData = {};
-      bool isJsonResponse = true;
-      String formattedResponse = '';
+      // Find the best working method
+      final successMethods = results.entries
+          .where((entry) => entry.value['success'] == true)
+          .map((entry) => entry.key)
+          .toList();
 
-      try {
-        responseData = json.decode(response.body);
-        formattedResponse =
-            const JsonEncoder.withIndent('  ').convert(responseData);
-      } catch (e) {
-        isJsonResponse = false;
-        formattedResponse = response.body;
-      }
+      final recommended =
+          successMethods.isNotEmpty ? successMethods.first : 'None';
 
-      // Determine if login was successful
-      bool isSuccess = false;
-      if (response.statusCode == 200 && isJsonResponse) {
-        if (responseData.containsKey('success')) {
-          isSuccess = responseData['success'] == true;
-        } else if (responseData.containsKey('user') ||
-            responseData.containsKey('token') ||
-            responseData.containsKey('userData')) {
-          isSuccess = true;
-        }
-      }
-
-      // Show response dialog with option to go to dashboard if successful
+      // Show simplified results
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(isSuccess ? 'Login Successful' : 'Login Failed'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Status: ${response.statusCode}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: isSuccess ? Colors.green : Colors.red,
-                  ),
+          title: const Text('API Test Results'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Working methods: ${successMethods.isEmpty ? "None" : successMethods.join(", ")}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: successMethods.isEmpty ? Colors.red : Colors.green,
                 ),
-                const SizedBox(height: 8),
-                const Text('Request Details:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('URL: $loginUrl'),
-                Text('Username: $username'),
-                const SizedBox(height: 8),
-                const Text('Response:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: SelectableText(
-                    formattedResponse,
-                    style:
-                        const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Recommended method: $recommended',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Close'),
             ),
-            if (isSuccess)
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx); // Close dialog
-
-                  // Navigate to dashboard
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DashboardScreen(userName: username),
-                    ),
-                  );
-                },
-                child: const Text('Go to Dashboard'),
-              ),
           ],
         ),
       );
@@ -1085,43 +1140,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       Navigator.pop(context); // Close loading dialog
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Request error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
     }
-  }
-
-  void handleButtonPress() {
-    if (!isClientCodeValid) {
-      checkClientCode();
-    } else {
-      login();
-    }
-  }
-
-  // Add debug button to UI
-  Widget _buildDebugButton() {
-    return TextButton(
-      onPressed: () {
-        if (isClientCodeValid) {
-          _showRawApiRequestInfo();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please verify client code first'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        }
-      },
-      child: const Text('DEBUG API'),
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.red,
-      ),
-    );
   }
 
   @override
@@ -1134,120 +1154,102 @@ class _HomeScreenState extends State<HomeScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          child: Container(
-            width: 400,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(color: Colors.black12, blurRadius: 10),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Secure Login",
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 30),
-                TextField(
-                  controller: _clientCodeController,
-                  enabled: !isClientCodeValid,
-                  decoration: const InputDecoration(
-                    labelText: 'Client Code',
-                    prefixIcon: Icon(Icons.business),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                if (showLoginFields) ...[
-                  TextField(
-                    controller: _usernameController,
-                    enabled: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: Icon(Icons.person),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: Icon(Icons.lock),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Remember Me', style: TextStyle(fontSize: 16)),
-                      Switch(
-                        value: rememberMe,
-                        onChanged: (value) {
-                          setState(() {
-                            rememberMe = value;
-                          });
-                        },
-                        activeColor: const Color(0xFF2C3E50),
-                      ),
-                    ],
-                  ),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: Center(
+          child: SingleChildScrollView(
+            physics: const ClampingScrollPhysics(),
+            child: Container(
+              width: 400,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black12, blurRadius: 10),
                 ],
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: handleButtonPress,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2C3E50),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: Text(buttonText),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Secure Login",
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _clearClientCode,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade600,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      textStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                  const SizedBox(height: 30),
+                  TextField(
+                    controller: _clientCodeController,
+                    enabled: !isClientCodeValid,
+                    decoration: const InputDecoration(
+                      labelText: 'Client Code',
+                      prefixIcon: Icon(Icons.business),
                     ),
-                    child: Text(cleartext),
+                    textInputAction: TextInputAction.next,
                   ),
-                ),
-                const SizedBox(height: 12),
-                // Direct API Login button for testing
-                if (showLoginFields)
+                  const SizedBox(height: 20),
+                  if (showLoginFields) ...[
+                    TextField(
+                      controller: _usernameController,
+                      enabled: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                        prefixIcon: Icon(Icons.person),
+                      ),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText:
+                          !_showPassword, // Use the visibility flag here
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Colors.grey,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _showPassword = !_showPassword;
+                            });
+                          },
+                        ),
+                      ),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) {
+                        handleButtonPress();
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Remember Me',
+                            style: TextStyle(fontSize: 16)),
+                        Switch(
+                          value: rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              rememberMe = value;
+                            });
+                          },
+                          activeColor: const Color(0xFF2C3E50),
+                        ),
+                      ],
+                    ),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _ensureProperLoginRequest,
+                      onPressed: handleButtonPress,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
+                        backgroundColor: const Color(0xFF2C3E50),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         textStyle: const TextStyle(
                           fontSize: 16,
@@ -1258,409 +1260,32 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text('DIRECT API LOGIN'),
+                      child: Text(buttonText),
                     ),
                   ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: _buildDebugButton(),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Debug Info'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                  'Current API URL: ${clientApiUrl ?? "Not Set"}'),
-                              const SizedBox(height: 8),
-                              Text(
-                                  'Client Code: ${_clientCodeController.text}'),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: () async {
-                                  Navigator.pop(ctx);
-                                  if (clientApiUrl != null) {
-                                    // Store API URL directly
-                                    await ApiService.setApiUrl(clientApiUrl!);
-
-                                    // Test connection
-                                    final testResult =
-                                        await _testLoginUrlAvailability();
-
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(testResult
-                                            ? 'Connection to login URL successful!'
-                                            : 'Failed to connect to login URL'),
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: const Text('Test & Save URL'),
-                              ),
-                              const SizedBox(height: 8),
-                              ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pop(ctx);
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const ApiTestScreen(),
-                                    ),
-                                  );
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.indigo,
-                                ),
-                                child: const Text('Open API Testing Screen'),
-                              ),
-                              const SizedBox(height: 8),
-                              ElevatedButton(
-                                onPressed: () async {
-                                  // Check if we have user and password
-                                  if (_usernameController.text.isEmpty ||
-                                      _passwordController.text.isEmpty) {
-                                    Navigator.pop(ctx);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                            'Please enter username and password first'),
-                                        backgroundColor: Colors.orange,
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  Navigator.pop(ctx);
-                                  // Show loading indicator
-                                  showDialog(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder: (BuildContext context) {
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    },
-                                  );
-
-                                  try {
-                                    // Prepare raw request data for debugging
-                                    String username =
-                                        _usernameController.text.trim();
-                                    String password = _passwordController.text;
-
-                                    // Clean URL
-                                    String cleanUrl = clientApiUrl!;
-                                    if (cleanUrl.endsWith('/')) {
-                                      cleanUrl = cleanUrl.substring(
-                                          0, cleanUrl.length - 1);
-                                    }
-
-                                    // Create login URL
-                                    final loginUrl = '$cleanUrl/api/login';
-
-                                    // Create request body
-                                    final Map<String, dynamic> requestBody = {
-                                      'username': username,
-                                      'password': password,
-                                    };
-
-                                    // JSON encode the request body
-                                    final String jsonBody =
-                                        jsonEncode(requestBody);
-
-                                    if (!mounted) return;
-                                    Navigator.pop(context); // Close loading
-
-                                    // Show raw request dialog
-                                    showDialog(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Raw API Request'),
-                                        content: SingleChildScrollView(
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              const Text(
-                                                  'Login Request Details:',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              const SizedBox(height: 8),
-                                              Text('URL: $loginUrl'),
-                                              const SizedBox(height: 8),
-                                              const Text('Headers:',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              const Text(
-                                                  'Content-Type: application/json'),
-                                              const SizedBox(height: 8),
-                                              const Text('Body:',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              Text(
-                                                jsonBody,
-                                                style: const TextStyle(
-                                                  fontFamily: 'monospace',
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                              const Divider(),
-                                              const Text('Body Keys:',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              Text(requestBody.keys.join(', ')),
-                                              const SizedBox(height: 8),
-                                              const Text('Body Values:',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              Text('username: $username'),
-                                              Text(
-                                                  'password: ${password.replaceAll(RegExp(r'.'), '*')}'),
-                                              const Divider(),
-                                              const Text('Send API Request?'),
-                                            ],
-                                          ),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(ctx),
-                                            child: const Text('Cancel'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () async {
-                                              Navigator.pop(ctx);
-
-                                              // Show loading indicator
-                                              showDialog(
-                                                context: context,
-                                                barrierDismissible: false,
-                                                builder:
-                                                    (BuildContext context) {
-                                                  return const Center(
-                                                    child:
-                                                        CircularProgressIndicator(),
-                                                  );
-                                                },
-                                              );
-
-                                              try {
-                                                // Send direct HTTP request
-                                                final response = await http
-                                                    .post(
-                                                      Uri.parse(loginUrl),
-                                                      headers: {
-                                                        'Content-Type':
-                                                            'application/json'
-                                                      },
-                                                      body: jsonBody,
-                                                    )
-                                                    .timeout(const Duration(
-                                                        seconds: 10));
-
-                                                if (!mounted) return;
-                                                Navigator.pop(
-                                                    context); // Close loading
-
-                                                // Format response for display
-                                                String formattedResponse = '';
-                                                bool isJsonResponse = true;
-                                                Map<String, dynamic>
-                                                    responseData = {};
-
-                                                try {
-                                                  responseData = json
-                                                      .decode(response.body);
-                                                  formattedResponse =
-                                                      const JsonEncoder
-                                                              .withIndent('  ')
-                                                          .convert(
-                                                              responseData);
-                                                } catch (e) {
-                                                  isJsonResponse = false;
-                                                  formattedResponse =
-                                                      response.body;
-                                                }
-
-                                                // Show response dialog
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (ctx) => AlertDialog(
-                                                    title: Text(
-                                                        'API Response (${response.statusCode})'),
-                                                    content:
-                                                        SingleChildScrollView(
-                                                      child: Column(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          Text(
-                                                            'Status Code: ${response.statusCode}',
-                                                            style: TextStyle(
-                                                              color: response
-                                                                          .statusCode <
-                                                                      400
-                                                                  ? Colors.green
-                                                                  : Colors.red,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                            ),
-                                                          ),
-                                                          const SizedBox(
-                                                              height: 8),
-                                                          const Text(
-                                                              'Response Body:',
-                                                              style: TextStyle(
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .bold)),
-                                                          const SizedBox(
-                                                              height: 4),
-                                                          Container(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .all(8),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: Colors.grey
-                                                                  .shade100,
-                                                              border: Border.all(
-                                                                  color: Colors
-                                                                      .grey
-                                                                      .shade300),
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          4),
-                                                            ),
-                                                            child:
-                                                                SelectableText(
-                                                              formattedResponse,
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontFamily:
-                                                                    'monospace',
-                                                                fontSize: 12,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                          if (isJsonResponse) ...[
-                                                            const SizedBox(
-                                                                height: 8),
-                                                            const Text(
-                                                                'Response Keys:',
-                                                                style: TextStyle(
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .bold)),
-                                                            Text(responseData
-                                                                .keys
-                                                                .join(', ')),
-                                                          ],
-                                                          const SizedBox(
-                                                              height: 16),
-                                                          Text(
-                                                            'Login Result: ${isJsonResponse && responseData.containsKey("success") && responseData["success"] == true ? "Success ✅" : "Failed ❌"}',
-                                                            style: TextStyle(
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: isJsonResponse &&
-                                                                      responseData
-                                                                          .containsKey(
-                                                                              "success") &&
-                                                                      responseData[
-                                                                              "success"] ==
-                                                                          true
-                                                                  ? Colors.green
-                                                                  : Colors.red,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(ctx),
-                                                        child:
-                                                            const Text('Close'),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              } catch (e) {
-                                                if (!mounted) return;
-                                                Navigator.pop(
-                                                    context); // Close loading
-
-                                                ScaffoldMessenger.of(context)
-                                                    .showSnackBar(
-                                                  SnackBar(
-                                                    content: Text(
-                                                        'Request error: ${e.toString()}'),
-                                                    backgroundColor: Colors.red,
-                                                  ),
-                                                );
-                                              }
-                                            },
-                                            child: const Text('Send Request'),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  } catch (e) {
-                                    if (!mounted) return;
-                                    Navigator.pop(context); // Close loading
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: ${e.toString()}'),
-                                        backgroundColor: Colors.red,
-                                      ),
-                                    );
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.deepOrange,
-                                ),
-                                child: const Text('Raw API Request Test'),
-                              ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Close'),
-                            ),
-                          ],
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _clearClientCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
                         ),
-                      );
-                    },
-                    child: const Text('Show API URL (Debug)'),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(cleartext),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           ),
         ),
@@ -1696,6 +1321,7 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
   bool _isLoading = false;
   bool _isSuccess = false;
   int _responseCode = 0;
+  bool _showPassword = false;
 
   @override
   void initState() {
@@ -1730,8 +1356,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
         return;
       }
 
-      print('⚠️ TEST LOGIN: API URL=$apiUrl, Username=$username');
-
       // Clean URL by removing trailing slash if present
       String cleanUrl = apiUrl;
       if (cleanUrl.endsWith('/')) {
@@ -1740,7 +1364,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
 
       // Create the login URL
       final loginUrl = '$cleanUrl/api/login';
-      print('⚠️ TEST LOGIN URL: $loginUrl');
 
       // Create request body
       final Map<String, dynamic> requestBody = {
@@ -1756,9 +1379,6 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
             body: jsonEncode(requestBody),
           )
           .timeout(const Duration(seconds: 10));
-
-      print('⚠️ TEST LOGIN response code: ${response.statusCode}');
-      print('⚠️ TEST LOGIN response body: ${response.body}');
 
       // Format response for display
       String formattedResponse = '';
@@ -1834,138 +1454,157 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'API URL:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            TextField(
-              controller: _apiUrlController,
-              decoration: const InputDecoration(
-                hintText: 'http://example.com',
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'API URL:',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Login Credentials:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: 'Username',
+              TextField(
+                controller: _apiUrlController,
+                decoration: const InputDecoration(
+                  hintText: 'http://example.com',
+                ),
+                textInputAction: TextInputAction.next,
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: 'Password',
+              const SizedBox(height: 16),
+              const Text(
+                'Login Credentials:',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _testLogin,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+              TextField(
+                controller: _usernameController,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _passwordController,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _showPassword ? Icons.visibility : Icons.visibility_off,
+                      color: Colors.grey,
                     ),
-                    child: const Text('Test Login API'),
+                    onPressed: () {
+                      setState(() {
+                        _showPassword = !_showPassword;
+                      });
+                    },
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _testApiConnection,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Test API Connection'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Response:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                if (_responseCode > 0)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _isSuccess ? Colors.green : Colors.red,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Status: $_responseCode',
-                      style: const TextStyle(color: Colors.white),
+                obscureText: !_showPassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _testLogin(),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _testLogin,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Test Login API'),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SelectableText(
-                      _responseText,
-                      style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 14),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _testApiConnection,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.purple,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text('Test API Connection'),
                     ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'API Tips:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-                '• Login API should return success: true for valid credentials'),
-            const Text('• Response should have status code 200 for success'),
-            const Text('• Invalid credentials should return success: false'),
-            const SizedBox(height: 8),
-            const Text(
-              'Example Success Response:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
+                  ),
+                ],
               ),
-              child: const Text(
-                '{\n  "success": true,\n  "message": "Login successful",\n  "user": {\n    "id": 1,\n    "name": "Admin"\n  }\n}',
-                style: TextStyle(fontFamily: 'monospace', fontSize: 14),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Response:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  if (_responseCode > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _isSuccess ? Colors.green : Colors.red,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Status: $_responseCode',
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : SelectableText(
+                        _responseText,
+                        style: const TextStyle(
+                            fontFamily: 'monospace', fontSize: 14),
+                      ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'API Tips:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                  '• Login API should return success: true for valid credentials'),
+              const Text('• Response should have status code 200 for success'),
+              const Text('• Invalid credentials should return success: false'),
+              const SizedBox(height: 8),
+              const Text(
+                'Example Success Response:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '{\n  "success": true,\n  "message": "Login successful",\n  "user": {\n    "id": 1,\n    "name": "Admin"\n  }\n}',
+                  style: TextStyle(fontFamily: 'monospace', fontSize: 14),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

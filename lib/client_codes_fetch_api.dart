@@ -59,9 +59,7 @@ class ApiService {
   static Future<Map<String, dynamic>> verifyClientCode(
       String clientCode) async {
     try {
-      print('⚠️ Verifying client code: $clientCode');
       final verifyUrl = '$defaultBaseUrl/api/verify-client-code';
-      print('⚠️ Using verify URL: $verifyUrl');
 
       final response = await http.post(
         Uri.parse(verifyUrl),
@@ -69,17 +67,12 @@ class ApiService {
         body: jsonEncode({'client_code': clientCode}),
       );
 
-      print('⚠️ Verify response status: ${response.statusCode}');
-      print('⚠️ Verify response body: ${response.body}');
-
       if (response.statusCode == 200) {
         // Try to parse response body
         Map<String, dynamic> data;
         try {
           data = json.decode(response.body);
-          print('⚠️ Parsed verify response: $data');
         } catch (e) {
-          print('⚠️ Error parsing verify response: $e');
           return {'success': false, 'message': 'Error parsing server response'};
         }
 
@@ -87,14 +80,11 @@ class ApiService {
         String baseApiUrl;
         if (data.containsKey('api_url')) {
           baseApiUrl = data['api_url'];
-          print('⚠️ Found api_url in response: $baseApiUrl');
         } else if (data.containsKey('url')) {
           baseApiUrl = data['url'];
-          print('⚠️ Found url in response: $baseApiUrl');
         } else {
           // If neither field exists, use default
           baseApiUrl = defaultBaseUrl;
-          print('⚠️ No URL found in response, using default: $baseApiUrl');
         }
 
         // Remove trailing slash if present
@@ -105,7 +95,6 @@ class ApiService {
         // Save to shared preferences
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('base_api_url', baseApiUrl);
-        print('⚠️ Saved base_api_url: $baseApiUrl');
 
         return {
           'success': true,
@@ -125,7 +114,6 @@ class ApiService {
           }
         } catch (e) {
           // If we can't parse the response, use default message
-          print('⚠️ Error parsing error response: $e');
         }
 
         return {
@@ -135,7 +123,6 @@ class ApiService {
         };
       }
     } catch (e) {
-      print('⚠️ Client code verification error: $e');
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
   }
@@ -145,12 +132,10 @@ class ApiService {
       String username, String password) async {
     try {
       final apiUrl = await getClientApiUrl();
-      print('⚠️ LOGIN using API URL: $apiUrl');
 
       // Forward to directLogin for consistent behavior
       return directLogin(apiUrl, username, password);
     } catch (e) {
-      print('⚠️ LOGIN error: $e');
       return {
         'success': false,
         'message': 'Error connecting to server: ${e.toString()}',
@@ -170,38 +155,69 @@ class ApiService {
 
       // Always use /api/login endpoint for authentication
       final loginUrl = '$cleanUrl/api/login';
-      print('⚠️ DIRECT LOGIN with URL: $loginUrl');
-      print('⚠️ Username: $username, Password length: ${password.length}');
 
-      // IMPORTANT: Create proper request body with username and password
-      final requestBody = jsonEncode({
+      // Create different request body formats to try
+      final Map<String, dynamic> credentials = {
         'username': username,
         'password': password,
-      });
+      };
 
-      print('⚠️ Request body (raw): $requestBody');
-      print('⚠️ Request body keys: ${json.decode(requestBody).keys.toList()}');
+      // 1. Standard JSON body
+      final String jsonBody = jsonEncode(credentials);
 
-      // Send login request to API with proper headers
-      final response = await http
+      // Try with JSON content type first (most common)
+      var response = await http
           .post(
             Uri.parse(loginUrl),
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
             },
-            body: requestBody,
+            body: jsonBody,
           )
           .timeout(const Duration(seconds: 10));
 
-      print('⚠️ LOGIN response code: ${response.statusCode}');
-      print('⚠️ LOGIN response body: ${response.body}');
+      // If first attempt fails, try with form data
+      if (response.statusCode >= 400) {
+        // Create form data body
+        String formBody =
+            'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
 
-      // For debugging: Check if request was properly formatted
-      print('⚠️ Request was sent with:');
-      print('⚠️ - URL: $loginUrl');
-      print('⚠️ - Content-Type: application/json');
-      print('⚠️ - Body: $requestBody');
+        response = await http
+            .post(
+              Uri.parse(loginUrl),
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+              },
+              body: formBody,
+            )
+            .timeout(const Duration(seconds: 10));
+      }
+
+      // If still failing, try with multipart form
+      if (response.statusCode >= 400) {
+        var request = http.MultipartRequest('POST', Uri.parse(loginUrl));
+        request.fields['username'] = username;
+        request.fields['password'] = password;
+
+        var streamedResponse =
+            await request.send().timeout(const Duration(seconds: 10));
+        response = await http.Response.fromStream(streamedResponse);
+      }
+
+      // If all above attempts fail, try one last approach with direct query parameters
+      if (response.statusCode >= 400) {
+        final queryUrl =
+            '$loginUrl?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+
+        response = await http.post(
+          Uri.parse(queryUrl),
+          headers: {
+            'Accept': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 10));
+      }
 
       // Default to authentication failure
       bool isSuccess = false;
@@ -212,9 +228,7 @@ class ApiService {
       // Try to parse response as JSON
       try {
         responseData = json.decode(response.body);
-        print('⚠️ Parsed response data: $responseData');
       } catch (e) {
-        print('⚠️ Not a JSON response: $e');
         isJsonResponse = false;
         responseData = {'raw_text': response.body};
       }
@@ -269,9 +283,6 @@ class ApiService {
             'Login failed: Server returned error code ${response.statusCode}';
       }
 
-      print('⚠️ Login result: success=$isSuccess, message=$message');
-
-      // Return detailed response for debugging
       return {
         'success': isSuccess,
         'message': message,
@@ -279,10 +290,154 @@ class ApiService {
         'response_body': response.body,
         'response_data': responseData,
         'url_used': loginUrl,
-        'request_sent': json.decode(requestBody),
+        'request_sent': credentials,
       };
     } catch (e) {
-      print('⚠️ DIRECT LOGIN error: $e');
+      return {
+        'success': false,
+        'message': 'Error connecting to server: ${e.toString()}',
+        'url_used': '$apiUrl/api/login'
+      };
+    }
+  }
+
+  // Login with PHP API endpoint that has parameter issues
+  static Future<Map<String, dynamic>> loginWithPhpApi(
+      String apiUrl, String username, String password) async {
+    try {
+      // Clean URL by removing trailing slash if present
+      String cleanUrl = apiUrl;
+      if (cleanUrl.endsWith('/')) {
+        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
+
+      // Define the login URL - adjust this to match your PHP API endpoint
+      final loginUrl = '$cleanUrl/api/login';
+
+      // Try multiple approaches to handle the PHP parameter issue
+      List<Future<http.Response>> loginAttempts = [];
+
+      // 1. Standard form data approach
+      loginAttempts.add(
+        http
+            .post(
+              Uri.parse(loginUrl),
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body: 'username=$username&password=$password',
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
+
+      // 2. URL query parameters approach
+      loginAttempts.add(
+        http.post(
+          Uri.parse('$loginUrl?username=$username&password=$password'),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 10)),
+      );
+
+      // 3. Malformed parameter name approach (handling &amp;password issue)
+      loginAttempts.add(
+        http
+            .post(
+              Uri.parse(loginUrl),
+              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+              body: 'username=$username&amp;password=$password',
+            )
+            .timeout(const Duration(seconds: 10)),
+      );
+
+      // 4. Direct GET request with parameters
+      loginAttempts.add(
+        http.get(
+          Uri.parse('$loginUrl?username=$username&password=$password'),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 10)),
+      );
+
+      // Try each approach until one succeeds
+      http.Response? successfulResponse;
+      String attemptDescription = '';
+
+      for (int i = 0; i < loginAttempts.length; i++) {
+        try {
+          final response = await loginAttempts[i];
+
+          // If we got a 200 response, consider it successful
+          if (response.statusCode == 200) {
+            successfulResponse = response;
+            switch (i) {
+              case 0:
+                attemptDescription = 'Standard form data';
+                break;
+              case 1:
+                attemptDescription = 'URL query parameters';
+                break;
+              case 2:
+                attemptDescription = 'Malformed parameter name';
+                break;
+              case 3:
+                attemptDescription = 'Direct GET request';
+                break;
+            }
+            break;
+          }
+        } catch (e) {}
+      }
+
+      // If no attempt was successful, return error
+      if (successfulResponse == null) {
+        return {
+          'success': false,
+          'message': 'All login attempts failed',
+          'url_used': loginUrl,
+        };
+      }
+
+      // Process the successful response
+
+      // Try to parse response as JSON
+      Map<String, dynamic> responseData = {};
+      bool isJsonResponse = true;
+      try {
+        responseData = json.decode(successfulResponse.body);
+      } catch (e) {
+        isJsonResponse = false;
+        responseData = {'raw_text': successfulResponse.body};
+      }
+
+      // Check for success indicators in the response
+      bool isSuccess = false;
+      String message = 'Login failed: Invalid credentials';
+
+      if (isJsonResponse) {
+        // Check for status field (common in PHP APIs)
+        if (responseData.containsKey('status')) {
+          if (responseData['status'] == true ||
+              responseData['status'].toString().toLowerCase() == 'true' ||
+              responseData['status'].toString().toLowerCase() == 'success') {
+            isSuccess = true;
+            message = responseData['message'] ?? 'Login successful';
+          }
+        }
+
+        // Check for user_data field (based on your PHP API)
+        if (responseData.containsKey('user_data')) {
+          isSuccess = true;
+          message = 'Login successful';
+        }
+      }
+
+      return {
+        'success': isSuccess,
+        'message': message,
+        'response_code': successfulResponse.statusCode,
+        'response_body': successfulResponse.body,
+        'response_data': responseData,
+        'url_used': loginUrl,
+        'method_used': attemptDescription,
+      };
+    } catch (e) {
       return {
         'success': false,
         'message': 'Error connecting to server: ${e.toString()}',
@@ -307,13 +462,11 @@ class ApiService {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('base_api_url', cleanUrl);
-    print('⚠️ API URL directly set to: $cleanUrl');
   }
 
   // Set up for local development server
   static Future<void> setupLocalServer(String port) async {
     final localUrl = 'http://127.0.0.1:$port';
-    print('⚠️ Setting up local development server at: $localUrl');
 
     // Save this URL as the base API URL
     await setApiUrl(localUrl);
