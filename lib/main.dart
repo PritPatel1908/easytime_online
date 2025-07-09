@@ -427,6 +427,8 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (context) => DashboardScreen(
                   userName: userData['emp_name'] ?? username,
+                  userData:
+                      userData, // Pass the full user data including emp_key
                 ),
               ),
             );
@@ -615,6 +617,8 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (context) => DashboardScreen(
                   userName: _usernameController.text.trim(),
+                  userData:
+                      isJsonResponse ? {'response_data': responseData} : null,
                 ),
               ),
             );
@@ -829,6 +833,7 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (context) => DashboardScreen(
                   userName: userData['emp_name'] ?? username,
+                  userData: {'user_data': userData},
                 ),
               ),
             );

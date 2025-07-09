@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:easytime_online/monthly_work_hours_api.dart';
+import 'package:easytime_online/weekly_work_hours_api.dart';
+import 'dart:async';
 
 class DashboardScreen extends StatefulWidget {
   final String? userName;
+  final Map<String, dynamic>? userData;
 
-  const DashboardScreen({super.key, this.userName});
+  const DashboardScreen({super.key, this.userName, this.userData});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -15,14 +19,195 @@ class _DashboardScreenState extends State<DashboardScreen>
   final ScrollController _mainScrollController = ScrollController();
   late TabController _tabController;
 
+  // Add state variables for work hours
+  String _monthlyWorkHours = "0.0";
+  bool _isLoadingMonthlyWorkHours = false;
+  String _monthlyWorkHoursError = "";
+
+  // Add state variables for weekly work hours
+  String _weeklyWorkHours = "0.0";
+  bool _isLoadingWeeklyWorkHours = false;
+  String _weeklyWorkHoursError = "";
+
+  // Work hours API services
+  final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
+  final WeeklyWorkHoursApi _weeklyWorkHoursApi = WeeklyWorkHoursApi();
+  StreamSubscription? _monthlyWorkHoursSubscription;
+  StreamSubscription? _weeklyWorkHoursSubscription;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+
+    // Debug print userData
+    print("Dashboard initialized with userData: ${widget.userData}");
+
+    // Start background service for work hours
+    _setupWorkHoursServices();
+  }
+
+  // Set up work hours background services
+  void _setupWorkHoursServices() {
+    // Find employee key from userData
+    String? empKey = _findEmployeeKey();
+
+    if (empKey != null) {
+      // Set loading state
+      setState(() {
+        _isLoadingMonthlyWorkHours = true;
+        _isLoadingWeeklyWorkHours = true;
+      });
+
+      // Subscribe to monthly work hours updates
+      _monthlyWorkHoursSubscription =
+          _monthlyWorkHoursApi.workHoursStream.listen((result) {
+        if (mounted) {
+          setState(() {
+            _isLoadingMonthlyWorkHours = false;
+
+            if (result['success'] == true && result.containsKey('work_hours')) {
+              // Format work hours to display
+              var workHoursValue = result['work_hours'];
+              print(
+                  "Processing monthly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
+
+              // Check if it's in HH:MM format
+              if (workHoursValue is String && workHoursValue.contains(':')) {
+                // It's in time format (HH:MM)
+                List<String> parts = workHoursValue.split(':');
+                if (parts.length == 2) {
+                  try {
+                    int hours = int.parse(parts[0]);
+                    int minutes = int.parse(parts[1]);
+                    // Use the original value from API without any calculations
+                    _monthlyWorkHours = workHoursValue;
+                    print(
+                        "Using original time format from API: $_monthlyWorkHours");
+                  } catch (e) {
+                    print("Error parsing time format: $e");
+                    _monthlyWorkHours =
+                        workHoursValue; // Just use the original string
+                  }
+                } else {
+                  _monthlyWorkHours =
+                      workHoursValue; // Just use the original string
+                }
+              } else {
+                // Just use the original value without any formatting
+                _monthlyWorkHours = workHoursValue.toString();
+              }
+
+              print("Updated monthly work hours: $_monthlyWorkHours");
+            } else {
+              _monthlyWorkHoursError =
+                  result['message'] ?? "Failed to load monthly work hours";
+              print("Monthly work hours error: $_monthlyWorkHoursError");
+            }
+          });
+        }
+      });
+
+      // Subscribe to weekly work hours updates
+      _weeklyWorkHoursSubscription =
+          _weeklyWorkHoursApi.workHoursStream.listen((result) {
+        if (mounted) {
+          setState(() {
+            _isLoadingWeeklyWorkHours = false;
+
+            if (result['success'] == true && result.containsKey('work_hours')) {
+              // Format work hours to display
+              var workHoursValue = result['work_hours'];
+              print(
+                  "Processing weekly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
+
+              // Check if it's in HH:MM format
+              if (workHoursValue is String && workHoursValue.contains(':')) {
+                // It's in time format (HH:MM)
+                List<String> parts = workHoursValue.split(':');
+                if (parts.length == 2) {
+                  try {
+                    int hours = int.parse(parts[0]);
+                    int minutes = int.parse(parts[1]);
+                    // Use the original value from API without any calculations
+                    _weeklyWorkHours = workHoursValue;
+                    print(
+                        "Using original time format from API: $_weeklyWorkHours");
+                  } catch (e) {
+                    print("Error parsing time format: $e");
+                    _weeklyWorkHours =
+                        workHoursValue; // Just use the original string
+                  }
+                } else {
+                  _weeklyWorkHours =
+                      workHoursValue; // Just use the original string
+                }
+              } else {
+                // Just use the original value without any formatting
+                _weeklyWorkHours = workHoursValue.toString();
+              }
+
+              print("Updated weekly work hours: $_weeklyWorkHours");
+            } else {
+              _weeklyWorkHoursError =
+                  result['message'] ?? "Failed to load weekly work hours";
+              print("Weekly work hours error: $_weeklyWorkHoursError");
+            }
+          });
+        }
+      });
+
+      // Start periodic updates (every 5 minutes)
+      _monthlyWorkHoursApi.startPeriodicUpdates(empKey,
+          interval: const Duration(minutes: 5));
+
+      _weeklyWorkHoursApi.startPeriodicUpdates(empKey,
+          interval: const Duration(minutes: 5));
+    } else {
+      setState(() {
+        _monthlyWorkHoursError = "Employee key not found";
+        _weeklyWorkHoursError = "Employee key not found";
+      });
+    }
+  }
+
+  // Helper method to find employee key in userData
+  String? _findEmployeeKey() {
+    if (widget.userData == null) {
+      print("userData is null");
+      return null;
+    }
+
+    // Check for emp_key in different possible locations in userData
+    if (widget.userData!.containsKey('emp_key')) {
+      return widget.userData!['emp_key'].toString();
+    } else if (widget.userData!.containsKey('user_data') &&
+        widget.userData!['user_data'] is Map &&
+        (widget.userData!['user_data'] as Map).containsKey('emp_key')) {
+      return widget.userData!['user_data']['emp_key'].toString();
+    } else if (widget.userData!.containsKey('response_data') &&
+        widget.userData!['response_data'] is Map &&
+        widget.userData!['response_data'].containsKey('user_data') &&
+        widget.userData!['response_data']['user_data'] is Map &&
+        widget.userData!['response_data']['user_data'].containsKey('emp_key')) {
+      return widget.userData!['response_data']['user_data']['emp_key']
+          .toString();
+    }
+
+    print("Missing emp_key in userData: ${widget.userData}");
+    return null;
   }
 
   @override
   void dispose() {
+    // Cancel work hours subscriptions
+    _monthlyWorkHoursSubscription?.cancel();
+    _weeklyWorkHoursSubscription?.cancel();
+
+    // Stop periodic updates
+    _monthlyWorkHoursApi.stopPeriodicUpdates();
+    _weeklyWorkHoursApi.stopPeriodicUpdates();
+
     _mainScrollController.dispose();
     _tabController.dispose();
     super.dispose();
@@ -129,21 +314,28 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Row(
                 children: [
                   _buildStatCard(
-                    title: 'Hours',
-                    value: '32.5',
-                    subtitle: 'This week',
+                    title: 'Monthly',
+                    value:
+                        _isLoadingMonthlyWorkHours ? "..." : _monthlyWorkHours,
+                    subtitle: _monthlyWorkHoursError.isNotEmpty
+                        ? _monthlyWorkHoursError
+                        : 'This month',
                     color: Colors.blue,
-                    icon: Icons.access_time,
+                    icon: Icons.calendar_month,
                     flex: 1,
+                    isWorkHours: true,
                   ),
                   const SizedBox(width: 12),
                   _buildStatCard(
-                    title: 'Tasks',
-                    value: '8',
-                    subtitle: '3 completed',
+                    title: 'Weekly',
+                    value: _isLoadingWeeklyWorkHours ? "..." : _weeklyWorkHours,
+                    subtitle: _weeklyWorkHoursError.isNotEmpty
+                        ? _weeklyWorkHoursError
+                        : 'This week',
                     color: Colors.green,
-                    icon: Icons.task_alt,
+                    icon: Icons.access_time,
                     flex: 1,
+                    isWorkHours: true,
                   ),
                 ],
               ),
@@ -288,6 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required Color color,
     required IconData icon,
     required int flex,
+    bool isWorkHours = false,
   }) {
     return Expanded(
       flex: flex,
@@ -339,6 +532,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     subtitle,
@@ -346,6 +540,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       color: Colors.white.withAlpha(204),
                       fontSize: 10,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ],
               ),
