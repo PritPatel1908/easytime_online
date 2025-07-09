@@ -45,31 +45,35 @@ class _DashboardScreenState extends State<DashboardScreen>
             backgroundColor: Colors.white,
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'EasyTime',
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+              title: Padding(
+                padding: const EdgeInsets.only(right: 60),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'EasyTime',
+                      style: TextStyle(
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
-                  ),
-                  Text(
-                    ' Online',
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor.withAlpha(179),
-                      fontWeight: FontWeight.w400,
-                      fontSize: 18,
+                    Text(
+                      ' Online',
+                      style: TextStyle(
+                        color: Theme.of(context).primaryColor.withAlpha(179),
+                        fontWeight: FontWeight.w400,
+                        fontSize: 18,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               background: Container(
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 60, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 40, 16, 0),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
@@ -79,8 +83,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF333333),
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
+                        maxLines: 2,
                       ),
                     ),
+                    const SizedBox(width: 12),
                     Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,

@@ -442,47 +442,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Custom toast message with better styling
+  // Simple toast message
   void _showCustomToast(String message, {required bool isSuccess}) {
     // Dismiss keyboard first
     FocusScope.of(context).unfocus();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              Icon(
-                isSuccess ? Icons.check_circle : Icons.error,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        backgroundColor:
-            isSuccess ? Colors.green.shade800 : Colors.red.shade800,
-        duration: Duration(seconds: isSuccess ? 2 : 4),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        margin: EdgeInsets.only(
-          bottom: MediaQuery.of(context).size.height * 0.5,
-          left: 10,
-          right: 10,
-        ),
-        elevation: 6,
+        content: Text(message),
+        backgroundColor: isSuccess ? Colors.green[600] : Colors.red[600],
+        duration: const Duration(seconds: 2),
       ),
     );
   }
