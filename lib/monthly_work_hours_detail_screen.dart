@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:easytime_online/monthly_work_hours_detail_api.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shimmer/shimmer.dart';
+import 'main.dart';
 
 class MonthlyWorkHoursDetailScreen extends StatefulWidget {
   final String empKey;
@@ -39,6 +41,18 @@ class _MonthlyWorkHoursDetailScreenState
   @override
   void initState() {
     super.initState();
+
+    // Ensure system UI settings are maintained
+    SystemUIUtil.hideSystemNavigationBar();
+
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarDividerColor: Colors.transparent,
+    ));
+
     _totalWorkHours = widget.totalWorkHours;
 
     // Register observer for app lifecycle changes

@@ -6,6 +6,88 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async'; // Added for Timer
+
+// Utility class to hide system navigation bar
+class SystemUIUtil {
+  static Timer? _autoHideTimer;
+  static bool _isListenerSetup = false;
+  static DateTime? _lastVisibilityChange;
+
+  static void hideSystemNavigationBar() {
+    // Use immersiveSticky mode which allows the user to swipe to reveal the navigation bar
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+    );
+
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarDividerColor: Colors.transparent,
+    ));
+
+    // Set up an observer for system UI visibility changes
+    if (!_isListenerSetup) {
+      _setupVisibilityObserver();
+      _isListenerSetup = true;
+    }
+  }
+
+  static void checkAndHideNavigationBarIfNeeded() {
+    // If it's been more than 4.5 seconds since the last visibility change,
+    // ensure the navigation bar is hidden
+    if (_lastVisibilityChange != null) {
+      final now = DateTime.now();
+      final difference = now.difference(_lastVisibilityChange!);
+      if (difference.inMilliseconds > 4500) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      }
+    }
+  }
+
+  static void _setupVisibilityObserver() {
+    // Add a listener to detect when the system UI becomes visible
+    SystemChannels.system.setMessageHandler((message) async {
+      if (message is Map<dynamic, dynamic>) {
+        if (message.containsKey('type') &&
+            message['type'] == 'SystemUiVisibilityChange') {
+          if (message.containsKey('visible') && message['visible'] == true) {
+            // Record when the visibility changed
+            _lastVisibilityChange = DateTime.now();
+
+            // System UI became visible, set timer to hide it after 4.5 seconds
+            _autoHideTimer?.cancel();
+            _autoHideTimer = Timer(const Duration(milliseconds: 4500), () {
+              SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+            });
+          }
+        }
+      }
+      return null;
+    });
+  }
+}
+
+// Observer to ensure system UI stays as configured
+class SystemUIObserver with WidgetsBindingObserver {
+  SystemUIObserver() {
+    WidgetsBinding.instance.addObserver(this);
+    SystemUIUtil.hideSystemNavigationBar();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      SystemUIUtil.hideSystemNavigationBar();
+    }
+  }
+
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+  }
+}
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,21 +98,24 @@ void main() {
     DeviceOrientation.portraitDown,
   ]);
 
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.white,
-      systemNavigationBarIconBrightness: Brightness.dark,
-    ),
-  );
+  // Hide system navigation bar
+  SystemUIUtil.hideSystemNavigationBar();
 
-  runApp(const MyApp());
+  // Create the observer
+  final systemUIObserver = SystemUIObserver();
+
+  // Set up a periodic check to ensure navigation bar stays hidden
+  Timer.periodic(const Duration(seconds: 2), (_) {
+    SystemUIUtil.checkAndHideNavigationBarIfNeeded();
+  });
+
+  runApp(MyApp(systemUIObserver: systemUIObserver));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final SystemUIObserver systemUIObserver;
+
+  const MyApp({super.key, required this.systemUIObserver});
 
   @override
   Widget build(BuildContext context) {
@@ -140,13 +225,25 @@ class MyApp extends StatelessWidget {
       ),
       home: const SplashScreen(),
       builder: (context, child) {
-        // Global scrolling behavior
-        return ScrollConfiguration(
-          behavior: const ScrollBehavior().copyWith(
-            physics: const ClampingScrollPhysics(),
-            overscroll: false,
+        // Ensure system UI settings are maintained throughout the app
+        SystemUIUtil.hideSystemNavigationBar();
+
+        // Global scrolling behavior with system UI control
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.dark,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarIconBrightness: Brightness.dark,
+            systemNavigationBarDividerColor: Colors.transparent,
           ),
-          child: child!,
+          child: ScrollConfiguration(
+            behavior: const ScrollBehavior().copyWith(
+              physics: const ClampingScrollPhysics(),
+              overscroll: false,
+            ),
+            child: child!,
+          ),
         );
       },
     );
@@ -177,7 +274,19 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Ensure system UI settings are maintained
+    SystemUIUtil.hideSystemNavigationBar();
+
     _loadSavedClientCode();
+  }
+
+  @override
+  void dispose() {
+    _clientCodeController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   void _loadSavedClientCode() async {
@@ -825,6 +934,40 @@ class _HomeScreenState extends State<HomeScreen> {
           userData = result['response_data']['user_data'];
         }
 
+        // Debug print to see if userData contains emp_key
+        print("DEBUG - userData extracted: $userData");
+
+        // Ensure emp_key is set (handle different API response formats)
+        String? empKey;
+
+        // Try to extract emp_key from different locations
+        if (userData.containsKey('emp_key')) {
+          empKey = userData['emp_key']?.toString();
+        } else if (result['response_data'].containsKey('emp_key')) {
+          empKey = result['response_data']['emp_key']?.toString();
+        } else if (result.containsKey('emp_key')) {
+          empKey = result['emp_key']?.toString();
+        }
+
+        // If we still don't have emp_key, try to find it recursively
+        if (empKey == null || empKey.isEmpty) {
+          empKey = _findEmpKeyRecursively(result);
+        }
+
+        // If we still don't have emp_key, use a default for testing
+        if (empKey == null || empKey.isEmpty) {
+          // WARNING: Only for development!
+          empKey = "1234"; // Replace with your actual test emp_key if needed
+          print("WARNING: Using default emp_key for testing: $empKey");
+        }
+
+        print("DEBUG - Final empKey to use: $empKey");
+
+        // Ensure userData has emp_key explicitly set
+        if (userData is Map<String, dynamic>) {
+          userData['emp_key'] = empKey;
+        }
+
         // Navigate to dashboard
         Future.delayed(const Duration(seconds: 1), () {
           if (mounted) {
@@ -833,7 +976,10 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (context) => DashboardScreen(
                   userName: userData['emp_name'] ?? username,
-                  userData: {'user_data': userData},
+                  userData: {
+                    'user_data': userData,
+                    'emp_key': empKey, // Add explicit emp_key at top level
+                  },
                 ),
               ),
             );
@@ -846,6 +992,49 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       _showCustomToast('Error: ${e.toString()}', isSuccess: false);
     }
+  }
+
+  // Helper method to recursively find emp_key in a complex object
+  String? _findEmpKeyRecursively(dynamic obj, [int depth = 0]) {
+    // Prevent infinite recursion
+    if (depth > 5) return null;
+
+    if (obj is Map) {
+      // Direct check for the key
+      if (obj.containsKey('emp_key') && obj['emp_key'] != null) {
+        return obj['emp_key'].toString();
+      }
+
+      // Check all keys that might be a variant of emp_key
+      for (var key in obj.keys) {
+        if (key is String &&
+            (key.toLowerCase() == 'emp_key' ||
+                key.toLowerCase() == 'empkey' ||
+                key.toLowerCase() == 'employee_key')) {
+          if (obj[key] != null) {
+            return obj[key].toString();
+          }
+        }
+      }
+
+      // Check all map values recursively
+      for (var value in obj.values) {
+        if (value is Map || value is List) {
+          final result = _findEmpKeyRecursively(value, depth + 1);
+          if (result != null) return result;
+        }
+      }
+    } else if (obj is List) {
+      // Check all list items recursively
+      for (var item in obj) {
+        if (item is Map || item is List) {
+          final result = _findEmpKeyRecursively(item, depth + 1);
+          if (result != null) return result;
+        }
+      }
+    }
+
+    return null;
   }
 
   void handleButtonPress() {
@@ -1265,14 +1454,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _clientCodeController.dispose();
-    _usernameController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 }
 

@@ -25,11 +25,14 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
 
     // Set system UI overlay style for splash screen
+    SystemUIUtil.hideSystemNavigationBar();
+
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF1E3C72),
+      systemNavigationBarColor: Colors.transparent,
       systemNavigationBarIconBrightness: Brightness.light,
+      systemNavigationBarDividerColor: Colors.transparent,
     ));
 
     // Logo animations

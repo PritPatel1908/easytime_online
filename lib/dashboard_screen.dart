@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:easytime_online/monthly_work_hours_api.dart';
 import 'package:easytime_online/weekly_work_hours_api.dart';
 import 'package:easytime_online/monthly_work_hours_detail_screen.dart';
+import 'package:easytime_online/status_pie_chart_api.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'dart:math';
 import 'dart:async';
+import 'dart:convert';
+import 'main.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String? userName;
@@ -33,16 +40,44 @@ class _DashboardScreenState extends State<DashboardScreen>
   // Work hours API services
   final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
   final WeeklyWorkHoursApi _weeklyWorkHoursApi = WeeklyWorkHoursApi();
+  final StatusPieChartApi _statusPieChartApi = StatusPieChartApi();
   StreamSubscription? _monthlyWorkHoursSubscription;
   StreamSubscription? _weeklyWorkHoursSubscription;
+  StreamSubscription? _statusPieChartSubscription;
+
+  // Status Pie Chart Data
+  Map<String, dynamic>? _statusPieChartData;
+  bool _isLoadingStatusPieChart = false;
+  String _statusPieChartError = "";
 
   @override
   void initState() {
     super.initState();
+
+    // Ensure system UI settings are maintained
+    SystemUIUtil.hideSystemNavigationBar();
+
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarDividerColor: Colors.transparent,
+    ));
+
     _tabController = TabController(length: 3, vsync: this);
 
-    // Debug print userData
+    // Debug print userData with more detailed logging
     print("Dashboard initialized with userData: ${widget.userData}");
+
+    try {
+      // Try to log full userData structure for debugging
+      if (widget.userData != null) {
+        print("Full userData structure: ${json.encode(widget.userData)}");
+      }
+    } catch (e) {
+      print("Error encoding userData: $e");
+    }
 
     // Start background service for work hours
     _setupWorkHoursServices();
@@ -166,11 +201,81 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       _weeklyWorkHoursApi.startPeriodicUpdates(empKey,
           interval: const Duration(minutes: 5));
+
+      // Subscribe to status pie chart data updates
+      setState(() {
+        _isLoadingStatusPieChart = true;
+      });
+
+      // Validate employee key one more time specifically for pie chart
+      if (empKey.trim().isEmpty && !kDebugMode) {
+        print(
+            "WARNING: Empty employee key for status pie chart after trimming");
+        setState(() {
+          _isLoadingStatusPieChart = false;
+          _statusPieChartError = "Employee key is empty";
+        });
+      } else {
+        print("\n==== STATUS PIE CHART SETUP ====");
+        print("Setting up status pie chart with empKey: '$empKey'");
+        print("Employee key type: ${empKey.runtimeType}");
+        print("Employee key length: ${empKey.length}");
+        print(
+            "Employee key codeUnits: ${empKey.codeUnits}"); // Check for invisible characters
+
+        // Make sure empKey is a valid string for API call
+        final validEmpKey = empKey.trim();
+        print("Using validEmpKey for status pie chart: '$validEmpKey'");
+
+        // Set up the stream subscription first
+        _statusPieChartSubscription =
+            _statusPieChartApi.statusDataStream.listen((result) {
+          print("Received status pie chart data update: ${result['success']}");
+          if (mounted) {
+            setState(() {
+              _isLoadingStatusPieChart = false;
+
+              if (result['success'] == true &&
+                  result.containsKey('status_data')) {
+                _statusPieChartData = result['status_data'];
+                _statusPieChartError = "";
+                print("Updated status pie chart data: $_statusPieChartData");
+              } else {
+                _statusPieChartError =
+                    result['message'] ?? "Failed to load status data";
+                print("Status pie chart error: $_statusPieChartError");
+              }
+            });
+          }
+        });
+
+        // Start periodic updates for status pie chart
+        try {
+          // Make an immediate direct call to fetch data
+          print("Making immediate call to fetch status pie chart data");
+          _statusPieChartApi.fetchStatusPieChart(validEmpKey);
+
+          // Then set up periodic updates
+          _statusPieChartApi.startPeriodicUpdates(validEmpKey,
+              interval: const Duration(minutes: 15));
+          print(
+              "Started periodic updates for status pie chart with validEmpKey: '$validEmpKey'");
+          print("==== STATUS PIE CHART SETUP COMPLETE ====\n");
+        } catch (e) {
+          print("Error starting periodic updates for status pie chart: $e");
+          setState(() {
+            _statusPieChartError = "Error: $e";
+          });
+        }
+      }
     } else {
       setState(() {
         _monthlyWorkHoursError = "Employee key not found";
         _weeklyWorkHoursError = "Employee key not found";
+        _statusPieChartError = "Employee key not found";
       });
+
+      print("Failed to start API services: Employee key is null or empty");
     }
   }
 
@@ -181,23 +286,205 @@ class _DashboardScreenState extends State<DashboardScreen>
       return null;
     }
 
+    try {
+      print(
+          "Detailed userData content for debugging: ${json.encode(widget.userData)}");
+    } catch (e) {
+      print("Error encoding userData: $e");
+    }
+
+    // Fallback to hardcoded empKey for development/testing
+    const String fallbackEmpKey = "1234"; // Default test emp_key
+    String? foundEmpKey;
+
     // Check for emp_key in different possible locations in userData
     if (widget.userData!.containsKey('emp_key')) {
-      return widget.userData!['emp_key'].toString();
-    } else if (widget.userData!.containsKey('user_data') &&
-        widget.userData!['user_data'] is Map &&
-        (widget.userData!['user_data'] as Map).containsKey('emp_key')) {
-      return widget.userData!['user_data']['emp_key'].toString();
-    } else if (widget.userData!.containsKey('response_data') &&
-        widget.userData!['response_data'] is Map &&
-        widget.userData!['response_data'].containsKey('user_data') &&
-        widget.userData!['response_data']['user_data'] is Map &&
-        widget.userData!['response_data']['user_data'].containsKey('emp_key')) {
-      return widget.userData!['response_data']['user_data']['emp_key']
-          .toString();
+      print("Found emp_key directly: ${widget.userData!['emp_key']}");
+      foundEmpKey = widget.userData!['emp_key']?.toString();
+    }
+
+    // Check user_data path
+    if (foundEmpKey == null && widget.userData!.containsKey('user_data')) {
+      var userData = widget.userData!['user_data'];
+      if (userData is Map) {
+        if ((userData as Map).containsKey('emp_key')) {
+          print("Found emp_key in user_data: ${userData['emp_key']}");
+          foundEmpKey = userData['emp_key']?.toString();
+        } else {
+          print("user_data exists but doesn't contain emp_key: $userData");
+        }
+      } else {
+        print("user_data exists but is not a Map: $userData");
+      }
+    }
+
+    // Check response_data.user_data path
+    if (foundEmpKey == null && widget.userData!.containsKey('response_data')) {
+      var responseData = widget.userData!['response_data'];
+      if (responseData is Map && responseData.containsKey('user_data')) {
+        var userData = responseData['user_data'];
+        if (userData is Map && userData.containsKey('emp_key')) {
+          print(
+              "Found emp_key in response_data.user_data: ${userData['emp_key']}");
+          foundEmpKey = userData['emp_key']?.toString();
+        } else {
+          print(
+              "response_data.user_data exists but doesn't contain emp_key: $userData");
+        }
+      } else {
+        print(
+            "response_data exists but doesn't contain user_data or is not a Map: $responseData");
+      }
+    }
+
+    // Check user path
+    if (foundEmpKey == null && widget.userData!.containsKey('user')) {
+      var user = widget.userData!['user'];
+      if (user is Map && user.containsKey('emp_key')) {
+        print("Found emp_key in user: ${user['emp_key']}");
+        foundEmpKey = user['emp_key']?.toString();
+      } else {
+        print("user exists but doesn't contain emp_key: $user");
+      }
+    }
+
+    // Check data path
+    if (foundEmpKey == null && widget.userData!.containsKey('data')) {
+      var data = widget.userData!['data'];
+      if (data is Map) {
+        if (data.containsKey('emp_key')) {
+          print("Found emp_key in data: ${data['emp_key']}");
+          foundEmpKey = data['emp_key']?.toString();
+        } else if (data.containsKey('user')) {
+          var user = data['user'];
+          if (user is Map && user.containsKey('emp_key')) {
+            print("Found emp_key in data.user: ${user['emp_key']}");
+            foundEmpKey = user['emp_key']?.toString();
+          } else {
+            print("data.user exists but doesn't contain emp_key: $user");
+          }
+        } else {
+          print("data exists but doesn't contain emp_key or user: $data");
+        }
+      } else {
+        print("data exists but is not a Map: $data");
+      }
+    }
+
+    // Check raw_response path
+    if (foundEmpKey == null && widget.userData!.containsKey('raw_response')) {
+      var rawResponse = widget.userData!['raw_response'];
+      if (rawResponse is Map) {
+        var empKey = _findEmpKeyInMap(rawResponse);
+        if (empKey != null) {
+          print("Found emp_key in raw_response: $empKey");
+          foundEmpKey = empKey;
+        } else {
+          print(
+              "raw_response exists but emp_key not found in it: $rawResponse");
+        }
+      } else {
+        print("raw_response exists but is not a Map: $rawResponse");
+      }
+    }
+
+    // If we've exhausted all known paths, try a deep search in the entire userData object
+    if (foundEmpKey == null) {
+      print("Trying deep search in userData for emp_key...");
+      foundEmpKey = _findEmpKeyDeep(widget.userData!);
+      if (foundEmpKey != null && foundEmpKey.isNotEmpty) {
+        print("Found emp_key via deep search: $foundEmpKey");
+      }
+    }
+
+    // Validate the found empKey before returning
+    if (foundEmpKey != null) {
+      // Trim any whitespace
+      foundEmpKey = foundEmpKey.trim();
+
+      // Print more details about the found key
+      print(
+          "Found empKey after trim: '$foundEmpKey', length: ${foundEmpKey.length}");
+
+      // Only return if it's not empty after trimming
+      if (foundEmpKey.isNotEmpty) {
+        return foundEmpKey;
+      } else {
+        print(
+            "Found empKey is empty after trimming, will use fallback if in debug mode");
+      }
+    }
+
+    // Always use fallback in debug mode, otherwise return null
+    if (kDebugMode) {
+      print("DEVELOPMENT MODE: Using fallback emp_key: $fallbackEmpKey");
+      return fallbackEmpKey;
     }
 
     print("Missing emp_key in userData: ${widget.userData}");
+    return null;
+  }
+
+  // Deep search function to look through nested maps and lists
+  String? _findEmpKeyDeep(dynamic obj, [int depth = 0, int maxDepth = 5]) {
+    // Stop at a reasonable depth to prevent infinite recursion
+    if (depth > maxDepth) return null;
+
+    if (obj is Map) {
+      // Direct check for the key
+      if (obj.containsKey('emp_key')) {
+        return obj['emp_key'].toString();
+      }
+
+      // Check all entries
+      for (var entry in obj.entries) {
+        var key = entry.key;
+        var value = entry.value;
+
+        // If the key itself is emp_key, return the value
+        if (key is String && key.toLowerCase() == 'emp_key') {
+          return value.toString();
+        }
+
+        // Recursively check all map values
+        if (value is Map || value is List) {
+          var result = _findEmpKeyDeep(value, depth + 1, maxDepth);
+          if (result != null) return result;
+        }
+      }
+    } else if (obj is List) {
+      // For each item in the list, recursively check it
+      for (var item in obj) {
+        if (item is Map || item is List) {
+          var result = _findEmpKeyDeep(item, depth + 1, maxDepth);
+          if (result != null) return result;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Helper method to recursively search for emp_key in a nested map
+  String? _findEmpKeyInMap(Map<dynamic, dynamic> map) {
+    // Direct check for emp_key
+    if (map.containsKey('emp_key')) {
+      return map['emp_key'].toString();
+    }
+
+    // Check all map values that are maps themselves
+    for (var key in map.keys) {
+      var value = map[key];
+      if (value is Map) {
+        var empKey = _findEmpKeyInMap(value);
+        if (empKey != null) {
+          return empKey;
+        }
+      } else if (key == 'emp_key') {
+        return value.toString();
+      }
+    }
+
     return null;
   }
 
@@ -206,10 +493,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Cancel work hours subscriptions
     _monthlyWorkHoursSubscription?.cancel();
     _weeklyWorkHoursSubscription?.cancel();
+    _statusPieChartSubscription?.cancel();
 
     // Stop periodic updates
     _monthlyWorkHoursApi.stopPeriodicUpdates();
     _weeklyWorkHoursApi.stopPeriodicUpdates();
+    _statusPieChartApi.dispose();
 
     _mainScrollController.dispose();
     _tabController.dispose();
@@ -401,6 +690,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ),
             ),
+          ),
+
+          // Status Pie Chart
+          SliverToBoxAdapter(
+            child: _buildStatusPieChart(),
           ),
 
           // Tab Bar
@@ -610,6 +904,450 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ],
     );
+  }
+
+  // Create a method to build the pie chart
+  Widget _buildStatusPieChart() {
+    // Random color generator that creates visually pleasing colors
+    Color getRandomColor(int index, String status) {
+      // Pre-defined seed colors for known status codes to maintain consistency
+      final Map<String, Color> seedColors = {
+        'PP': const Color(0xFF2196F3), // Blue
+        'WO': const Color(0xFF4CAF50), // Green
+        'AA': const Color(0xFFFFC107), // Yellow/Amber
+      };
+
+      // If we have a seed color for this status, use it
+      if (seedColors.containsKey(status)) {
+        return seedColors[status]!;
+      }
+
+      // Otherwise generate a color based on the index using HSL for better visual appeal
+      // This ensures a good spread of colors around the color wheel
+      final hue = (index * 137.5) %
+          360; // Golden angle approximation for good distribution
+      return HSLColor.fromAHSL(
+              1.0, // Alpha (opacity)
+              hue, // Hue (color)
+              0.7, // Saturation (vibrant but not too aggressive)
+              0.5 +
+                  (index % 2) *
+                      0.1 // Lightness (alternating between lighter and darker)
+              )
+          .toColor();
+    }
+
+    // Helper function to convert status code to readable text
+    String getStatusLabel(String code) {
+      switch (code) {
+        case 'PP':
+          return 'Present';
+        case 'WO':
+          return 'Work Off';
+        case 'AA':
+          return 'Absent';
+        case 'HD':
+          return 'Half Day';
+        case 'HO':
+          return 'Holiday';
+        case 'LE':
+          return 'Leave';
+        default:
+          return code;
+      }
+    }
+
+    // Function to refresh the status pie chart
+    Future<void> _refreshStatusPieChart() async {
+      setState(() {
+        _isLoadingStatusPieChart = true;
+      });
+
+      String? empKey = _findEmployeeKey();
+      if (empKey != null) {
+        try {
+          final baseUrl = await StatusPieChartApi.getBaseApiUrl();
+          print(
+              "Refreshing status pie chart with URL: $baseUrl, empKey: $empKey");
+
+          // Direct API call for testing
+          await _statusPieChartApi.callApiDirectly(empKey, baseUrl);
+        } catch (e) {
+          print("Error refreshing status pie chart: $e");
+          setState(() {
+            _statusPieChartError = "Error: $e";
+            _isLoadingStatusPieChart = false;
+          });
+        }
+      } else {
+        setState(() {
+          _statusPieChartError = "Employee key not found";
+          _isLoadingStatusPieChart = false;
+        });
+      }
+    }
+
+    // If loading, show a placeholder with activity indicator
+    if (_isLoadingStatusPieChart) {
+      return Container(
+        height: 350,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(10),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    // If there's an error, show the error message with nice UI
+    if (_statusPieChartError.isNotEmpty) {
+      return Container(
+        height: 350,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(10),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              _statusPieChartError,
+              style: TextStyle(
+                color: Colors.red[400],
+                fontWeight: FontWeight.w500,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _refreshStatusPieChart,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh Data'),
+              style: ElevatedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If there's no data yet, show a message with nice UI
+    if (_statusPieChartData == null) {
+      return Container(
+        height: 350,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(10),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bar_chart, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No attendance data available',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _refreshStatusPieChart,
+              icon: const Icon(Icons.download),
+              label: const Text('Load Data'),
+              style: ElevatedButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Prepare the pie chart sections and legend items
+    final sections = <PieChartSectionData>[];
+    final legendItems = <Widget>[];
+    final statusMap = Map<String, dynamic>.from(_statusPieChartData!);
+    double total = 0;
+
+    // Calculate total for percentage
+    statusMap.forEach((key, value) {
+      total += (value as num).toDouble();
+    });
+
+    // Create sections and legends with random colors
+    int colorIndex = 0;
+    statusMap.forEach((key, value) {
+      // Generate random color based on index and status code
+      final color = getRandomColor(colorIndex++, key);
+
+      final double percentage =
+          total > 0 ? (value as num).toDouble() / total * 100 : 0;
+      final formattedPercentage = percentage.toStringAsFixed(1);
+
+      // Create pie section with large percentage text
+      sections.add(
+        PieChartSectionData(
+          color: color,
+          value: (value as num).toDouble(),
+          title: '${percentage.round()}%',
+          radius: 70, // Matches the new radius in the chart
+          titleStyle: const TextStyle(
+            fontSize: 16, // Matches the new font size in the chart
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+          badgeWidget: Icon(
+            _getIconForStatus(key),
+            size: 14, // Even smaller icon
+            color: Colors.white,
+          ),
+          badgePositionPercentageOffset: 0.8, // Move badge closer to center
+        ),
+      );
+
+      // Create legend item with dot, label and value
+      legendItems.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 4), // Further reduced margin
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  getStatusLabel(key),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Expanded(
+                flex: 1,
+                child: Text(
+                  '${value.toString()} (${formattedPercentage}%)',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+
+    // Return the completed pie chart widget with clean design
+    return Container(
+      height: 385, // Slightly increased to accommodate the added spacing
+      margin: const EdgeInsets.fromLTRB(
+          16, 0, 16, 10), // Reduced bottom margin from 16 to 10
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          // Title bar with gradient - fixed height
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF506D94), // Navy blue like in screenshot
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.pie_chart, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Attendance Summary',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon:
+                      const Icon(Icons.refresh, color: Colors.white, size: 20),
+                  onPressed: _refreshStatusPieChart,
+                  tooltip: 'Refresh Data',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  iconSize: 20,
+                ),
+              ],
+            ),
+          ),
+
+          // Add a divider to clearly separate header from content
+          Container(
+            height: 4,
+            color: Colors.grey[100],
+          ),
+
+          // Content container with clear bounds
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.only(top: 10), // Reduced from 12 to 10
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  // Add extra spacing after header - reduced from 8 to 5
+                  const SizedBox(height: 5),
+
+                  // Pie chart area with fixed height to prevent overlap
+                  SizedBox(
+                    height: 175, // Increased from 165 to 175
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 1.3,
+                        child: PieChart(
+                          PieChartData(
+                            centerSpaceRadius: 30,
+                            sectionsSpace: 2,
+                            centerSpaceColor: Colors.white,
+                            borderData: FlBorderData(show: false),
+                            sections: sections
+                                .map((section) => section.copyWith(
+                                      radius: 70, // Even smaller radius
+                                      titleStyle: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ))
+                                .toList(),
+                          ),
+                          swapAnimationDuration:
+                              const Duration(milliseconds: 500),
+                          swapAnimationCurve: Curves.easeInOutQuint,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Legend with compact layout - reduced from 100 to 90
+                  Container(
+                    height: 90, // Smaller fixed height for legend
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+                    child: statusMap.length <= 3
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: legendItems,
+                          )
+                        : ListView(
+                            padding: EdgeInsets.zero,
+                            physics: const ClampingScrollPhysics(),
+                            children: legendItems,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to get icon for status
+  IconData _getIconForStatus(String status) {
+    switch (status) {
+      case 'PP':
+        return Icons.check_circle;
+      case 'WO':
+        return Icons.home_work;
+      case 'AA':
+        return Icons.cancel;
+      case 'HD':
+        return Icons.horizontal_split;
+      case 'HO':
+        return Icons.celebration;
+      case 'LE':
+        return Icons.beach_access;
+      default:
+        return Icons.circle;
+    }
   }
 
   Widget _buildProjectsTab() {
