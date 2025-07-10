@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:easytime_online/monthly_work_hours_api.dart';
 import 'package:easytime_online/weekly_work_hours_api.dart';
+import 'package:easytime_online/monthly_work_hours_detail_screen.dart';
 import 'dart:async';
 
 class DashboardScreen extends StatefulWidget {
@@ -78,8 +79,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 List<String> parts = workHoursValue.split(':');
                 if (parts.length == 2) {
                   try {
-                    int hours = int.parse(parts[0]);
-                    int minutes = int.parse(parts[1]);
+                    // Just validate the format without using the parsed values
+                    int.parse(parts[0]);
+                    int.parse(parts[1]);
                     // Use the original value from API without any calculations
                     _monthlyWorkHours = workHoursValue;
                     print(
@@ -127,8 +129,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                 List<String> parts = workHoursValue.split(':');
                 if (parts.length == 2) {
                   try {
-                    int hours = int.parse(parts[0]);
-                    int minutes = int.parse(parts[1]);
+                    // Just validate the format without using the parsed values
+                    int.parse(parts[0]);
+                    int.parse(parts[1]);
                     // Use the original value from API without any calculations
                     _weeklyWorkHours = workHoursValue;
                     print(
@@ -484,72 +487,105 @@ class _DashboardScreenState extends State<DashboardScreen>
   }) {
     return Expanded(
       flex: flex,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [color, color.withAlpha(179)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+      child: GestureDetector(
+        onTap: () {
+          // Handle tap based on card type
+          if (title == 'Monthly') {
+            _navigateToMonthlyWorkHoursDetail();
+          } else if (title == 'Weekly') {
+            // Future implementation for weekly details
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [color, color.withAlpha(179)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: color.withAlpha(77),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: color.withAlpha(77),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(51),
-                borderRadius: BorderRadius.circular(8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(51),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: Colors.white, size: 24),
               ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.white.withAlpha(204),
-                      fontSize: 10,
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(204),
+                        fontSize: 10,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  // Navigate to Monthly Work Hours Detail Screen
+  void _navigateToMonthlyWorkHoursDetail() {
+    String? empKey = _findEmployeeKey();
+    if (empKey != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MonthlyWorkHoursDetailScreen(
+            empKey: empKey,
+            totalWorkHours: _monthlyWorkHours,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Employee key not found. Cannot load details.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildQuickActionButton({
