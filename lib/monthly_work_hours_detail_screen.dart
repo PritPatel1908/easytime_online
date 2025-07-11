@@ -306,7 +306,6 @@ class _MonthlyWorkHoursDetailScreenState
               const SizedBox(width: 16),
               OutlinedButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Go Back'),
                 style: OutlinedButton.styleFrom(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -314,6 +313,7 @@ class _MonthlyWorkHoursDetailScreenState
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
+                child: const Text('Go Back'),
               ),
             ],
           ),
@@ -916,11 +916,6 @@ class _MonthlyWorkHoursDetailScreenState
       default:
         return Colors.grey[600]!;
     }
-  }
-
-  // Helper method to get status text color
-  Color _getStatusTextColor(String status) {
-    return Colors.white;
   }
 
   // Helper method to get status display text

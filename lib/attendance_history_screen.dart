@@ -387,9 +387,16 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: DataTable(
-              headingRowColor: MaterialStateProperty.resolveWith<Color>(
-                (Set<MaterialState> states) =>
-                    Theme.of(context).primaryColor.withOpacity(0.1),
+              headingRowColor: WidgetStateProperty.resolveWith<Color>(
+                (Set<WidgetState> states) {
+                  Color baseColor = Theme.of(context).primaryColor;
+                  return Color.fromRGBO(
+                    (baseColor.r * 255.0).round() & 0xff,
+                    (baseColor.g * 255.0).round() & 0xff,
+                    (baseColor.b * 255.0).round() & 0xff,
+                    0.1,
+                  );
+                },
               ),
               columnSpacing: 24,
               dataRowMinHeight: 48,
@@ -434,7 +441,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(status).withOpacity(0.1),
+                          color: Color.fromRGBO(
+                            (_getStatusColor(status).r * 255.0).round() & 0xff,
+                            (_getStatusColor(status).g * 255.0).round() & 0xff,
+                            (_getStatusColor(status).b * 255.0).round() & 0xff,
+                            0.1,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(

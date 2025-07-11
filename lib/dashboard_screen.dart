@@ -1371,9 +1371,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           // Title bar with gradient - fixed height
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF506D94), // Navy blue like in screenshot
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Color(0xFF506D94), // Navy blue like in screenshot
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),

@@ -617,209 +617,136 @@ class _HomeScreenState extends State<HomeScreen> {
   // Helper method to navigate to dashboard after delay
   void _navigateToDashboardAfterDelay(BuildContext contextToUse,
       String displayName, Map<String, dynamic> userData) {
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        Navigator.pushReplacement(
-          contextToUse,
-          MaterialPageRoute(
-            builder: (context) => DashboardScreen(
-              userName: displayName,
-              userData: userData,
-            ),
-          ),
-        );
-      }
-    });
-  }
+    // Store a reference to the context
+    final BuildContext localContext = contextToUse;
 
-  // Helper method to safely navigate to dashboard
-  void ___safelyNavigateToDashboard(BuildContext contextToUse, String userName,
-      Map<String, dynamic> userData) {
-    if (mounted) {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) return;
       Navigator.pushReplacement(
-        contextToUse,
+        localContext,
         MaterialPageRoute(
           builder: (context) => DashboardScreen(
-            userName: userName,
+            userName: displayName,
             userData: userData,
           ),
         ),
       );
-    }
-  }
-
-  // Function to display raw request/response information for debugging
-  // Unused but kept for future reference
-  void ___showRawApiRequestInfo() {
-    String username = _usernameController.text.trim();
-    String password = _passwordController.text;
-
-    if (username.isEmpty || password.isEmpty) {
-      _showCustomToast('Please enter username and password', isSuccess: false);
-      return;
-    }
-
-    if (clientApiUrl == null || clientApiUrl!.isEmpty) {
-      _showCustomToast('API URL not set. Please verify client code',
-          isSuccess: false);
-      return;
-    }
-
-    // Clean URL
-    String cleanUrl = clientApiUrl!;
-    if (cleanUrl.endsWith('/')) {
-      cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
-    }
-
-    // Create login URL
-    final loginUrl = '$cleanUrl/api/login';
-
-    // Create raw request body
-    final Map<String, dynamic> requestBody = {
-      'username': username,
-      'password': password,
-    };
-
-    // JSON encode request body
-    final String jsonRequestBody = jsonEncode(requestBody);
-
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
-    // Verify proper JSON encoding
-    showDialog(
-      context: currentContext,
-      builder: (ctx) => AlertDialog(
-        title: const Text('API Request Information'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Raw Request Information:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text('URL: $loginUrl'),
-              const SizedBox(height: 4),
-              const Text('Headers:'),
-              const Text('  Content-Type: application/json'),
-              const Text('  Accept: application/json'),
-              const SizedBox(height: 4),
-              const Text('JSON Body:'),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  jsonRequestBody,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text('Body Keys: ${requestBody.keys.toList()}'),
-              Text('Contains username: ${jsonRequestBody.contains(username)}'),
-              Text('Contains password: ${jsonRequestBody.contains(password)}'),
-              const SizedBox(height: 8),
-              const Text('Send this request to the API?'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _sendRawApiRequest(loginUrl, jsonRequestBody);
-            },
-            child: const Text('Send Request'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Function to send a raw API request
-  void _sendRawApiRequest(String url, String jsonRequestBody) {
-    // Dismiss keyboard
-    FocusScope.of(context).unfocus();
-
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
-    showDialog(
-      context: currentContext,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
-
-    try {
-      // Verify if the body is valid JSON
-      json.decode(jsonRequestBody);
-    } catch (e) {
-      // Error parsing body
-    }
-
-    // Use direct http package to make request
-    http
-        .post(
-      Uri.parse(url),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonRequestBody,
-    )
-        .then((response) {
-      if (!mounted) return;
-      Navigator.pop(
-          currentContext); // Close loading dialog using stored context
-
-      // Parse response
-      String responseMessage = '';
-      bool isJsonResponse = true;
-      Map<String, dynamic> responseData = {};
-      bool isSuccess = false;
-
-      try {
-        responseData = json.decode(response.body);
-        isSuccess = responseData['success'] == true;
-        responseMessage = responseData['message'] ?? 'No message provided';
-      } catch (e) {
-        isJsonResponse = false;
-        responseMessage = 'Could not parse server response';
-      }
-
-      // Show toast message
-      _safelyShowToast(responseMessage, isSuccess: isSuccess);
-
-      // If login successful, navigate to dashboard after a short delay
-      if (isSuccess) {
-        _navigateToDashboardAfterDelay(
-            currentContext,
-            _usernameController.text.trim(),
-            isJsonResponse ? {'response_data': responseData} : {});
-      }
-    }).catchError((error) {
-      if (!mounted) return;
-      Navigator.pop(
-          currentContext); // Close loading dialog using stored context
-
-      // Show toast message
-      _safelyShowToast('Network error: ${error.toString()}', isSuccess: false);
     });
   }
+
+  // Helper method to safely navigate to dashboard
+  // void ___safelyNavigateToDashboard(BuildContext contextToUse, String userName,
+  //     Map<String, dynamic> userData) {
+  //   if (mounted) {
+  //     Navigator.pushReplacement(
+  //       contextToUse,
+  //       MaterialPageRoute(
+  //         builder: (context) => DashboardScreen(
+  //           userName: userName,
+  //           userData: userData,
+  //         ),
+  //       ),
+  //     );
+  //   }
+  // }
+
+  // Function to display raw request/response information for debugging
+  // Removed to fix unused element warning
+  // void ___showRawApiRequestInfo() {
+  //   String username = _usernameController.text.trim();
+  //   String password = _passwordController.text;
+  //
+  //   if (username.isEmpty || password.isEmpty) {
+  //     _showCustomToast('Please enter username and password', isSuccess: false);
+  //     return;
+  //   }
+  //
+  //   if (clientApiUrl == null || clientApiUrl!.isEmpty) {
+  //     _showCustomToast('API URL not set. Please verify client code',
+  //         isSuccess: false);
+  //     return;
+  //   }
+  //
+  //   // Clean URL
+  //   String cleanUrl = clientApiUrl!;
+  //   if (cleanUrl.endsWith('/')) {
+  //     cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+  //   }
+  //
+  //   // Create login URL
+  //   final loginUrl = '$cleanUrl/api/login';
+  //
+  //   // Create raw request body
+  //   final Map<String, dynamic> requestBody = {
+  //     'username': username,
+  //     'password': password,
+  //   };
+  //
+  //   // JSON encode request body
+  //   final String jsonRequestBody = jsonEncode(requestBody);
+  //
+  //   // Store context before async gap
+  //   final BuildContext currentContext = context;
+  //
+  //   // Verify proper JSON encoding
+  //   showDialog(
+  //     context: currentContext,
+  //     builder: (ctx) => AlertDialog(
+  //       title: const Text('API Request Information'),
+  //       content: SingleChildScrollView(
+  //         child: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             const Text('Raw Request Information:',
+  //                 style: TextStyle(fontWeight: FontWeight.bold)),
+  //             const SizedBox(height: 8),
+  //             Text('URL: $loginUrl'),
+  //             const SizedBox(height: 4),
+  //             const Text('Headers:'),
+  //             const Text('  Content-Type: application/json'),
+  //             const Text('  Accept: application/json'),
+  //             const SizedBox(height: 4),
+  //             const Text('JSON Body:'),
+  //             Container(
+  //               width: double.infinity,
+  //               padding: const EdgeInsets.all(8),
+  //               margin: const EdgeInsets.symmetric(vertical: 4),
+  //               decoration: BoxDecoration(
+  //                 color: Colors.grey.shade100,
+  //                 border: Border.all(color: Colors.grey.shade300),
+  //                 borderRadius: BorderRadius.circular(4),
+  //               ),
+  //               child: Text(
+  //                 jsonRequestBody,
+  //                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+  //               ),
+  //             ),
+  //             const SizedBox(height: 4),
+  //             Text('Body Keys: ${requestBody.keys.toList()}'),
+  //             Text('Contains username: ${jsonRequestBody.contains(username)}'),
+  //             Text('Contains password: ${jsonRequestBody.contains(password)}'),
+  //             const SizedBox(height: 8),
+  //             const Text('Send this request to the API?'),
+  //           ],
+  //         ),
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(ctx),
+  //           child: const Text('Cancel'),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {
+  //             Navigator.pop(ctx);
+  //             _sendRawApiRequest(loginUrl, jsonRequestBody);
+  //           },
+  //           child: const Text('Send Request'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // Add this method to test if the login URL is accessible
   Future<bool> _testLoginUrlAvailability() async {
@@ -847,103 +774,103 @@ class _HomeScreenState extends State<HomeScreen> {
   // Method removed to fix unused element warning
 
   // Execute PHP API login with detailed response
-  // Unused but kept for future reference
-  void ___executePhpApiLogin(
-      String apiUrl, String username, String password) async {
-    // Dismiss keyboard
-    FocusScope.of(context).unfocus();
-
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
-    // Show loading indicator
-    setState(() {
-      buttonText = 'SENDING...';
-    });
-
-    try {
-      // Call our new PHP API login method
-      final result =
-          await ApiService.loginWithPhpApi(apiUrl, username, password);
-
-      if (!mounted) return;
-
-      setState(() {
-        buttonText = 'LOGIN';
-      });
-
-      // Determine if login was successful
-      bool isSuccess = result['success'] == true;
-      String message = result['message'] ?? 'Unknown response';
-
-      // Show toast message
-      _safelyShowToast(message, isSuccess: isSuccess);
-
-      // If login successful, navigate to dashboard after a short delay
-      if (isSuccess) {
-        // Extract user data from response
-        Map<String, dynamic> userData = {};
-        if (result['response_data'].containsKey('user_data')) {
-          userData = result['response_data']['user_data'];
-        }
-
-        // Debug print to see if userData contains emp_key
-        if (kDebugMode) {
-          print("DEBUG - userData extracted: $userData");
-        }
-
-        // Ensure emp_key is set (handle different API response formats)
-        String? empKey;
-
-        // Try to extract emp_key from different locations
-        if (userData.containsKey('emp_key')) {
-          empKey = userData['emp_key']?.toString();
-        } else if (result['response_data'].containsKey('emp_key')) {
-          empKey = result['response_data']['emp_key']?.toString();
-        } else if (result.containsKey('emp_key')) {
-          empKey = result['emp_key']?.toString();
-        }
-
-        // If we still don't have emp_key, try to find it recursively
-        if (empKey == null || empKey.isEmpty) {
-          empKey = _findEmpKeyRecursively(result);
-        }
-
-        // If we still don't have emp_key, use a default for testing
-        if (empKey == null || empKey.isEmpty) {
-          // WARNING: Only for development!
-          empKey = "1234"; // Replace with your actual test emp_key if needed
-          if (kDebugMode) {
-            print("WARNING: Using default emp_key for testing: $empKey");
-          }
-        }
-
-        if (kDebugMode) {
-          print("DEBUG - Final empKey to use: $empKey");
-        }
-
-        // Ensure userData has emp_key explicitly set
-        userData['emp_key'] = empKey;
-
-        // Navigate to dashboard
-        _navigateToDashboardAfterDelay(
-          currentContext,
-          userData['emp_name'] ?? username,
-          {
-            'user_data': userData,
-            'emp_key': empKey, // Add explicit emp_key at top level
-          },
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        buttonText = 'LOGIN';
-      });
-      _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
-    }
-  }
+  // Removed to fix unused element warning
+  // void ___executePhpApiLogin(
+  //     String apiUrl, String username, String password) async {
+  //   // Dismiss keyboard
+  //   FocusScope.of(context).unfocus();
+  //
+  //   // Store context before async gap
+  //   final BuildContext currentContext = context;
+  //
+  //   // Show loading indicator
+  //   setState(() {
+  //     buttonText = 'SENDING...';
+  //   });
+  //
+  //   try {
+  //     // Call our new PHP API login method
+  //     final result =
+  //         await ApiService.loginWithPhpApi(apiUrl, username, password);
+  //
+  //     if (!mounted) return;
+  //
+  //     setState(() {
+  //       buttonText = 'LOGIN';
+  //     });
+  //
+  //     // Determine if login was successful
+  //     bool isSuccess = result['success'] == true;
+  //     String message = result['message'] ?? 'Unknown response';
+  //
+  //     // Show toast message
+  //     _safelyShowToast(message, isSuccess: isSuccess);
+  //
+  //     // If login successful, navigate to dashboard after a short delay
+  //     if (isSuccess) {
+  //       // Extract user data from response
+  //       Map<String, dynamic> userData = {};
+  //       if (result['response_data'].containsKey('user_data')) {
+  //         userData = result['response_data']['user_data'];
+  //       }
+  //
+  //       // Debug print to see if userData contains emp_key
+  //       if (kDebugMode) {
+  //         print("DEBUG - userData extracted: $userData");
+  //       }
+  //
+  //       // Ensure emp_key is set (handle different API response formats)
+  //       String? empKey;
+  //
+  //       // Try to extract emp_key from different locations
+  //       if (userData.containsKey('emp_key')) {
+  //         empKey = userData['emp_key']?.toString();
+  //       } else if (result['response_data'].containsKey('emp_key')) {
+  //         empKey = result['response_data']['emp_key']?.toString();
+  //       } else if (result.containsKey('emp_key')) {
+  //         empKey = result['emp_key']?.toString();
+  //       }
+  //
+  //       // If we still don't have emp_key, try to find it recursively
+  //       if (empKey == null || empKey.isEmpty) {
+  //         empKey = _findEmpKeyRecursively(result);
+  //       }
+  //
+  //       // If we still don't have emp_key, use a default for testing
+  //       if (empKey == null || empKey.isEmpty) {
+  //         // WARNING: Only for development!
+  //         empKey = "1234"; // Replace with your actual test emp_key if needed
+  //         if (kDebugMode) {
+  //           print("WARNING: Using default emp_key for testing: $empKey");
+  //         }
+  //       }
+  //
+  //       if (kDebugMode) {
+  //         print("DEBUG - Final empKey to use: $empKey");
+  //       }
+  //
+  //       // Ensure userData has emp_key explicitly set
+  //       userData['emp_key'] = empKey;
+  //
+  //       // Navigate to dashboard
+  //       _navigateToDashboardAfterDelay(
+  //         currentContext,
+  //         userData['emp_name'] ?? username,
+  //         {
+  //           'user_data': userData,
+  //           'emp_key': empKey, // Add explicit emp_key at top level
+  //         },
+  //       );
+  //     }
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //
+  //     setState(() {
+  //       buttonText = 'LOGIN';
+  //     });
+  //     _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
+  //   }
+  // }
 
   // Helper method to recursively find emp_key in a complex object
   String? _findEmpKeyRecursively(dynamic obj, [int depth = 0]) {
@@ -1002,230 +929,230 @@ class _HomeScreenState extends State<HomeScreen> {
   // Method removed to fix unused element warning
 
   // Method to test all possible API request formats to find which one works
-  // Unused but kept for future reference
-  Future<void> ___runApiCompatibilityTest() async {
-    if (clientApiUrl == null || clientApiUrl!.isEmpty) {
-      _showCustomToast('Error: API URL not set', isSuccess: false);
-      return;
-    }
-
-    String username = _usernameController.text.trim();
-    String password = _passwordController.text;
-
-    if (username.isEmpty || password.isEmpty) {
-      _showCustomToast('Please enter username and password', isSuccess: false);
-      return;
-    }
-
-    // Dismiss keyboard
-    FocusScope.of(context).unfocus();
-
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
-    // Show loading dialog
-    showDialog(
-      context: currentContext,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
-
-    try {
-      // Clean URL
-      String cleanUrl = clientApiUrl!;
-      if (cleanUrl.endsWith('/')) {
-        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
-      }
-
-      // Create login URL
-      final loginUrl = '$cleanUrl/api/login';
-      final results = <String, Map<String, dynamic>>{};
-
-      // 1. Test standard JSON
-      try {
-        final jsonBody = jsonEncode({
-          'username': username,
-          'password': password,
-        });
-
-        final response = await http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
-              body: jsonBody,
-            )
-            .timeout(const Duration(seconds: 5));
-
-        results['JSON'] = {
-          'status': response.statusCode,
-          'body': response.body,
-          'success': response.statusCode < 400,
-        };
-      } catch (e) {
-        results['JSON'] = {
-          'status': 'error',
-          'body': e.toString(),
-          'success': false,
-        };
-      }
-
-      // 2. Test form URL encoded
-      try {
-        final formBody =
-            'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
-
-        final response = await http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-              },
-              body: formBody,
-            )
-            .timeout(const Duration(seconds: 5));
-
-        results['Form-URL'] = {
-          'status': response.statusCode,
-          'body': response.body,
-          'success': response.statusCode < 400,
-        };
-      } catch (e) {
-        results['Form-URL'] = {
-          'status': 'error',
-          'body': e.toString(),
-          'success': false,
-        };
-      }
-
-      // 3. Test multipart form
-      try {
-        final request = http.MultipartRequest('POST', Uri.parse(loginUrl));
-        request.fields['username'] = username;
-        request.fields['password'] = password;
-
-        final streamedResponse =
-            await request.send().timeout(const Duration(seconds: 5));
-        final response = await http.Response.fromStream(streamedResponse);
-
-        results['Multipart'] = {
-          'status': response.statusCode,
-          'body': response.body,
-          'success': response.statusCode < 400,
-        };
-      } catch (e) {
-        results['Multipart'] = {
-          'status': 'error',
-          'body': e.toString(),
-          'success': false,
-        };
-      }
-
-      // 4. Test query parameters
-      try {
-        final queryUrl =
-            '$loginUrl?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
-
-        final response = await http.post(
-          Uri.parse(queryUrl),
-          headers: {'Accept': 'application/json'},
-        ).timeout(const Duration(seconds: 5));
-
-        results['Query-Param'] = {
-          'status': response.statusCode,
-          'body': response.body,
-          'success': response.statusCode < 400,
-        };
-      } catch (e) {
-        results['Query-Param'] = {
-          'status': 'error',
-          'body': e.toString(),
-          'success': false,
-        };
-      }
-
-      // 5. Test raw form parameters (no Content-Type)
-      try {
-        final formBody =
-            'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
-
-        final response = await http
-            .post(
-              Uri.parse(loginUrl),
-              body: formBody,
-            )
-            .timeout(const Duration(seconds: 5));
-
-        results['Raw-Form'] = {
-          'status': response.statusCode,
-          'body': response.body,
-          'success': response.statusCode < 400,
-        };
-      } catch (e) {
-        results['Raw-Form'] = {
-          'status': 'error',
-          'body': e.toString(),
-          'success': false,
-        };
-      }
-
-      if (!mounted) return;
-      Navigator.pop(currentContext); // Close loading dialog
-
-      // Find the best working method
-      final successMethods = results.entries
-          .where((entry) => entry.value['success'] == true)
-          .map((entry) => entry.key)
-          .toList();
-
-      final recommended =
-          successMethods.isNotEmpty ? successMethods.first : 'None';
-
-      // Show simplified results
-      showDialog(
-        context: currentContext,
-        builder: (ctx) => AlertDialog(
-          title: const Text('API Test Results'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Working methods: ${successMethods.isEmpty ? "None" : successMethods.join(", ")}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: successMethods.isEmpty ? Colors.red : Colors.green,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Recommended method: $recommended',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(currentContext); // Close loading dialog
-
-      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
-    }
-  }
+  // Removed to fix unused element warning
+  // Future<void> ___runApiCompatibilityTest() async {
+  //   if (clientApiUrl == null || clientApiUrl!.isEmpty) {
+  //     _showCustomToast('Error: API URL not set', isSuccess: false);
+  //     return;
+  //   }
+  //
+  //   String username = _usernameController.text.trim();
+  //   String password = _passwordController.text;
+  //
+  //   if (username.isEmpty || password.isEmpty) {
+  //     _showCustomToast('Please enter username and password', isSuccess: false);
+  //     return;
+  //   }
+  //
+  //   // Dismiss keyboard
+  //   FocusScope.of(context).unfocus();
+  //
+  //   // Store context before async gap
+  //   final BuildContext currentContext = context;
+  //
+  //   // Show loading dialog
+  //   showDialog(
+  //     context: currentContext,
+  //     barrierDismissible: false,
+  //     builder: (BuildContext context) {
+  //       return const Center(
+  //         child: CircularProgressIndicator(),
+  //       );
+  //     },
+  //   );
+  //
+  //   try {
+  //     // Clean URL
+  //     String cleanUrl = clientApiUrl!;
+  //     if (cleanUrl.endsWith('/')) {
+  //       cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+  //     }
+  //
+  //     // Create login URL
+  //     final loginUrl = '$cleanUrl/api/login';
+  //     final results = <String, Map<String, dynamic>>{};
+  //
+  //     // 1. Test standard JSON
+  //     try {
+  //       final jsonBody = jsonEncode({
+  //         'username': username,
+  //         'password': password,
+  //       });
+  //
+  //       final response = await http
+  //           .post(
+  //             Uri.parse(loginUrl),
+  //             headers: {
+  //               'Content-Type': 'application/json',
+  //               'Accept': 'application/json',
+  //             },
+  //             body: jsonBody,
+  //           )
+  //           .timeout(const Duration(seconds: 5));
+  //
+  //       results['JSON'] = {
+  //         'status': response.statusCode,
+  //         'body': response.body,
+  //         'success': response.statusCode < 400,
+  //       };
+  //     } catch (e) {
+  //       results['JSON'] = {
+  //         'status': 'error',
+  //         'body': e.toString(),
+  //         'success': false,
+  //       };
+  //     }
+  //
+  //     // 2. Test form URL encoded
+  //     try {
+  //       final formBody =
+  //           'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+  //
+  //       final response = await http
+  //           .post(
+  //             Uri.parse(loginUrl),
+  //             headers: {
+  //               'Content-Type': 'application/x-www-form-urlencoded',
+  //               'Accept': 'application/json',
+  //             },
+  //             body: formBody,
+  //           )
+  //           .timeout(const Duration(seconds: 5));
+  //
+  //       results['Form-URL'] = {
+  //         'status': response.statusCode,
+  //         'body': response.body,
+  //         'success': response.statusCode < 400,
+  //       };
+  //     } catch (e) {
+  //       results['Form-URL'] = {
+  //         'status': 'error',
+  //         'body': e.toString(),
+  //         'success': false,
+  //       };
+  //     }
+  //
+  //     // 3. Test multipart form
+  //     try {
+  //       final request = http.MultipartRequest('POST', Uri.parse(loginUrl));
+  //       request.fields['username'] = username;
+  //       request.fields['password'] = password;
+  //
+  //       final streamedResponse =
+  //           await request.send().timeout(const Duration(seconds: 5));
+  //       final response = await http.Response.fromStream(streamedResponse);
+  //
+  //       results['Multipart'] = {
+  //         'status': response.statusCode,
+  //         'body': response.body,
+  //         'success': response.statusCode < 400,
+  //       };
+  //     } catch (e) {
+  //       results['Multipart'] = {
+  //         'status': 'error',
+  //         'body': e.toString(),
+  //         'success': false,
+  //       };
+  //     }
+  //
+  //     // 4. Test query parameters
+  //     try {
+  //       final queryUrl =
+  //           '$loginUrl?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+  //
+  //       final response = await http.post(
+  //         Uri.parse(queryUrl),
+  //         headers: {'Accept': 'application/json'},
+  //       ).timeout(const Duration(seconds: 5));
+  //
+  //       results['Query-Param'] = {
+  //         'status': response.statusCode,
+  //         'body': response.body,
+  //         'success': response.statusCode < 400,
+  //       };
+  //     } catch (e) {
+  //       results['Query-Param'] = {
+  //         'status': 'error',
+  //         'body': e.toString(),
+  //         'success': false,
+  //       };
+  //     }
+  //
+  //     // 5. Test raw form parameters (no Content-Type)
+  //     try {
+  //       final formBody =
+  //           'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+  //
+  //       final response = await http
+  //           .post(
+  //             Uri.parse(loginUrl),
+  //             body: formBody,
+  //           )
+  //           .timeout(const Duration(seconds: 5));
+  //
+  //       results['Raw-Form'] = {
+  //         'status': response.statusCode,
+  //         'body': response.body,
+  //         'success': response.statusCode < 400,
+  //       };
+  //     } catch (e) {
+  //       results['Raw-Form'] = {
+  //         'status': 'error',
+  //         'body': e.toString(),
+  //         'success': false,
+  //       };
+  //     }
+  //
+  //     if (!mounted) return;
+  //     Navigator.pop(currentContext); // Close loading dialog
+  //
+  //     // Find the best working method
+  //     final successMethods = results.entries
+  //         .where((entry) => entry.value['success'] == true)
+  //         .map((entry) => entry.key)
+  //         .toList();
+  //
+  //     final recommended =
+  //         successMethods.isNotEmpty ? successMethods.first : 'None';
+  //
+  //     // Show simplified results
+  //     showDialog(
+  //       context: currentContext,
+  //       builder: (ctx) => AlertDialog(
+  //         title: const Text('API Test Results'),
+  //         content: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Text(
+  //               'Working methods: ${successMethods.isEmpty ? "None" : successMethods.join(", ")}',
+  //               style: TextStyle(
+  //                 fontWeight: FontWeight.bold,
+  //                 color: successMethods.isEmpty ? Colors.red : Colors.green,
+  //               ),
+  //             ),
+  //             const SizedBox(height: 8),
+  //             Text(
+  //               'Recommended method: $recommended',
+  //               style: const TextStyle(fontWeight: FontWeight.bold),
+  //             ),
+  //           ],
+  //         ),
+  //         actions: [
+  //           TextButton(
+  //             onPressed: () => Navigator.pop(ctx),
+  //             child: const Text('Close'),
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     Navigator.pop(currentContext); // Close loading dialog
+  //
+  //     _showCustomToast('Error: ${e.toString()}', isSuccess: false);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

@@ -23,7 +23,7 @@ class AttendanceHistoryApi {
   Timer? _periodicTimer;
 
   // Cache for attendance data
-  Map<String, dynamic> _cachedData = {};
+  final Map<String, dynamic> _cachedData = {};
   bool _hasCachedData = false;
 
   // Get the stored base API URL
