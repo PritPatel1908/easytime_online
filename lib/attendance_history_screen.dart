@@ -231,13 +231,17 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       case 'AA':
         return Colors.red;
       case 'WO':
+      case 'WOP':
+      case 'PWO':
         return Colors.green;
       case 'HO':
+      case 'PHO':
         return Colors.amber;
-      case 'LE':
-        return Colors.purple;
+      case 'AP':
+      case 'PA':
+        return Colors.blue;
       default:
-        return Colors.grey;
+        return Colors.purple; // All other statuses (leave types) are purple
     }
   }
 
@@ -250,12 +254,20 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         return Icons.cancel;
       case 'WO':
         return Icons.weekend;
+      case 'WOP':
+        return Icons.weekend;
+      case 'PWO':
+        return Icons.weekend;
       case 'HO':
         return Icons.celebration;
-      case 'LE':
-        return Icons.beach_access;
+      case 'PHO':
+        return Icons.celebration;
+      case 'AP':
+        return Icons.check_circle;
+      case 'PA':
+        return Icons.check_circle;
       default:
-        return Icons.help;
+        return Icons.beach_access; // All other statuses show leave icon
     }
   }
 
@@ -301,6 +313,54 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                         : _showAsTable
                             ? _buildAttendanceTable()
                             : _buildAttendanceCalendar(),
+          ),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 1, // Set Attendance as selected
+        backgroundColor: Colors.white,
+        elevation: 0,
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        onDestinationSelected: (index) {
+          // Handle navigation here
+          switch (index) {
+            case 0:
+              // Navigate to Dashboard - using pop to return to dashboard
+              Navigator.pop(context);
+              break;
+            case 1:
+              // Already on Attendance screen
+              break;
+            case 2:
+              // Navigate to Hours screen
+              Navigator.pushReplacementNamed(context, '/hours');
+              break;
+            case 3:
+              // Navigate to Profile screen
+              Navigator.pushReplacementNamed(context, '/profile');
+              break;
+          }
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.access_time_outlined),
+            selectedIcon: Icon(Icons.access_time),
+            label: 'Attendance',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.task_outlined),
+            selectedIcon: Icon(Icons.task),
+            label: 'Tasks',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
       ),
@@ -643,13 +703,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   Widget _buildDayCell(int day, dynamic dayData) {
     final bool hasData = dayData != null;
     final String status = hasData ? dayData['status'] : '';
-    final String inTime = hasData ? dayData['in_time'] ?? '' : '';
-    final String outTime = hasData ? dayData['out_time'] ?? '' : '';
-    final String workHours = hasData
-        ? (inTime.isNotEmpty && outTime.isNotEmpty)
-            ? '${inTime.substring(0, 5)}-${outTime.substring(0, 5)}'
-            : ''
-        : '';
 
     // Check if this day is today
     final bool isToday = _isToday(day);
@@ -697,38 +750,26 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
               ),
             ),
             if (hasData) ...[
-              // Removed SizedBox height
-              // Status icon
+              const SizedBox(height: 2),
+              // Status icon - increased size
               Icon(
                 _getStatusIcon(status),
                 color: _getStatusColor(status),
-                size: 10, // Minimized size
+                size: 14, // Increased size from 10 to 14
               ),
-              // Removed SizedBox height
-              // Status text
+              const SizedBox(height: 2),
+              // Status text - increased font size
               Text(
                 status,
                 style: TextStyle(
-                  fontSize: 7, // Minimized font size
+                  fontSize: 10, // Increased font size from 7 to 10
                   fontWeight: FontWeight.bold,
                   color: _getStatusColor(status),
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              if (status == 'PP' && workHours.isNotEmpty) ...[
-                // Removed SizedBox height
-                // Work hours
-                Text(
-                  workHours,
-                  style: const TextStyle(
-                    fontSize: 7, // Further reduced font size
-                    color: Colors.black54,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis, // Handle overflow text
-                ),
-              ],
+              // Removed time display completely
             ],
           ],
         ),
@@ -742,7 +783,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       {'code': 'PP', 'name': 'Present'},
       {'code': 'AA', 'name': 'Absent'},
       {'code': 'WO', 'name': 'Week Off'},
+      {'code': 'WOP', 'name': 'Week Off Paid'},
+      {'code': 'PWO', 'name': 'Paid Week Off'},
       {'code': 'HO', 'name': 'Holiday'},
+      {'code': 'PHO', 'name': 'Paid Holiday'},
+      {'code': 'AP', 'name': 'Absent Present'},
+      {'code': 'PA', 'name': 'Present Absent'},
       {'code': 'LE', 'name': 'Leave'},
     ];
 
@@ -935,6 +981,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
@@ -951,24 +998,28 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
