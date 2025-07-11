@@ -5,8 +5,9 @@ import 'package:easytime_online/monthly_work_hours_api.dart';
 import 'package:easytime_online/weekly_work_hours_api.dart';
 import 'package:easytime_online/monthly_work_hours_detail_screen.dart';
 import 'package:easytime_online/status_pie_chart_api.dart';
+import 'package:easytime_online/attendance_history_screen.dart';
+import 'package:easytime_online/attendance_history_api.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'dart:math';
 import 'dart:async';
 import 'dart:convert';
 import 'main.dart';
@@ -41,6 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
   final WeeklyWorkHoursApi _weeklyWorkHoursApi = WeeklyWorkHoursApi();
   final StatusPieChartApi _statusPieChartApi = StatusPieChartApi();
+  final AttendanceHistoryApi _attendanceHistoryApi = AttendanceHistoryApi();
   StreamSubscription? _monthlyWorkHoursSubscription;
   StreamSubscription? _weeklyWorkHoursSubscription;
   StreamSubscription? _statusPieChartSubscription;
@@ -68,19 +70,50 @@ class _DashboardScreenState extends State<DashboardScreen>
     _tabController = TabController(length: 3, vsync: this);
 
     // Debug print userData with more detailed logging
-    print("Dashboard initialized with userData: ${widget.userData}");
+    if (kDebugMode) {
+      print("Dashboard initialized with userData: ${widget.userData}");
+    }
 
     try {
       // Try to log full userData structure for debugging
       if (widget.userData != null) {
-        print("Full userData structure: ${json.encode(widget.userData)}");
+        if (kDebugMode) {
+          print("Full userData structure: ${json.encode(widget.userData)}");
+        }
       }
     } catch (e) {
-      print("Error encoding userData: $e");
+      if (kDebugMode) {
+        print("Error encoding userData: $e");
+      }
     }
 
     // Start background service for work hours
     _setupWorkHoursServices();
+
+    // Prefetch attendance history data in background
+    _prefetchAttendanceHistory();
+  }
+
+  // Prefetch attendance history data in background
+  void _prefetchAttendanceHistory() {
+    String? empKey = _findEmployeeKey();
+    if (empKey != null) {
+      if (kDebugMode) {
+        print("Prefetching attendance history data in background");
+      }
+
+      // Get current month and year
+      final now = DateTime.now();
+      final currentMonth = now.month.toString().padLeft(2, '0');
+      final currentYear = now.year.toString();
+
+      // Fetch current month's attendance data
+      _attendanceHistoryApi.fetchAttendanceHistory(
+        empKey,
+        month: currentMonth,
+        year: currentYear,
+      );
+    }
   }
 
   // Set up work hours background services
@@ -105,8 +138,10 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (result['success'] == true && result.containsKey('work_hours')) {
               // Format work hours to display
               var workHoursValue = result['work_hours'];
-              print(
-                  "Processing monthly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
+              if (kDebugMode) {
+                print(
+                    "Processing monthly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
+              }
 
               // Check if it's in HH:MM format
               if (workHoursValue is String && workHoursValue.contains(':')) {
@@ -119,10 +154,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                     int.parse(parts[1]);
                     // Use the original value from API without any calculations
                     _monthlyWorkHours = workHoursValue;
-                    print(
-                        "Using original time format from API: $_monthlyWorkHours");
+                    if (kDebugMode) {
+                      print(
+                          "Using original time format from API: $_monthlyWorkHours");
+                    }
                   } catch (e) {
-                    print("Error parsing time format: $e");
+                    if (kDebugMode) {
+                      print("Error parsing time format: $e");
+                    }
                     _monthlyWorkHours =
                         workHoursValue; // Just use the original string
                   }
@@ -135,11 +174,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _monthlyWorkHours = workHoursValue.toString();
               }
 
-              print("Updated monthly work hours: $_monthlyWorkHours");
+              if (kDebugMode) {
+                print("Updated monthly work hours: $_monthlyWorkHours");
+              }
             } else {
               _monthlyWorkHoursError =
                   result['message'] ?? "Failed to load monthly work hours";
-              print("Monthly work hours error: $_monthlyWorkHoursError");
+              if (kDebugMode) {
+                print("Monthly work hours error: $_monthlyWorkHoursError");
+              }
             }
           });
         }
@@ -155,8 +198,10 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (result['success'] == true && result.containsKey('work_hours')) {
               // Format work hours to display
               var workHoursValue = result['work_hours'];
-              print(
-                  "Processing weekly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
+              if (kDebugMode) {
+                print(
+                    "Processing weekly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
+              }
 
               // Check if it's in HH:MM format
               if (workHoursValue is String && workHoursValue.contains(':')) {
@@ -169,10 +214,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                     int.parse(parts[1]);
                     // Use the original value from API without any calculations
                     _weeklyWorkHours = workHoursValue;
-                    print(
-                        "Using original time format from API: $_weeklyWorkHours");
+                    if (kDebugMode) {
+                      print(
+                          "Using original time format from API: $_weeklyWorkHours");
+                    }
                   } catch (e) {
-                    print("Error parsing time format: $e");
+                    if (kDebugMode) {
+                      print("Error parsing time format: $e");
+                    }
                     _weeklyWorkHours =
                         workHoursValue; // Just use the original string
                   }
@@ -185,11 +234,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _weeklyWorkHours = workHoursValue.toString();
               }
 
-              print("Updated weekly work hours: $_weeklyWorkHours");
+              if (kDebugMode) {
+                print("Updated weekly work hours: $_weeklyWorkHours");
+              }
             } else {
               _weeklyWorkHoursError =
                   result['message'] ?? "Failed to load weekly work hours";
-              print("Weekly work hours error: $_weeklyWorkHoursError");
+              if (kDebugMode) {
+                print("Weekly work hours error: $_weeklyWorkHoursError");
+              }
             }
           });
         }
@@ -209,28 +262,37 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       // Validate employee key one more time specifically for pie chart
       if (empKey.trim().isEmpty && !kDebugMode) {
-        print(
-            "WARNING: Empty employee key for status pie chart after trimming");
+        if (kDebugMode) {
+          print(
+              "WARNING: Empty employee key for status pie chart after trimming");
+        }
         setState(() {
           _isLoadingStatusPieChart = false;
           _statusPieChartError = "Employee key is empty";
         });
       } else {
-        print("\n==== STATUS PIE CHART SETUP ====");
-        print("Setting up status pie chart with empKey: '$empKey'");
-        print("Employee key type: ${empKey.runtimeType}");
-        print("Employee key length: ${empKey.length}");
-        print(
-            "Employee key codeUnits: ${empKey.codeUnits}"); // Check for invisible characters
+        if (kDebugMode) {
+          print("\n==== STATUS PIE CHART SETUP ====");
+          print("Setting up status pie chart with empKey: '$empKey'");
+          print("Employee key type: ${empKey.runtimeType}");
+          print("Employee key length: ${empKey.length}");
+          print(
+              "Employee key codeUnits: ${empKey.codeUnits}"); // Check for invisible characters
+        }
 
         // Make sure empKey is a valid string for API call
         final validEmpKey = empKey.trim();
-        print("Using validEmpKey for status pie chart: '$validEmpKey'");
+        if (kDebugMode) {
+          print("Using validEmpKey for status pie chart: '$validEmpKey'");
+        }
 
         // Set up the stream subscription first
         _statusPieChartSubscription =
             _statusPieChartApi.statusDataStream.listen((result) {
-          print("Received status pie chart data update: ${result['success']}");
+          if (kDebugMode) {
+            print(
+                "Received status pie chart data update: ${result['success']}");
+          }
           if (mounted) {
             setState(() {
               _isLoadingStatusPieChart = false;
@@ -239,11 +301,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   result.containsKey('status_data')) {
                 _statusPieChartData = result['status_data'];
                 _statusPieChartError = "";
-                print("Updated status pie chart data: $_statusPieChartData");
+                if (kDebugMode) {
+                  print("Updated status pie chart data: $_statusPieChartData");
+                }
               } else {
                 _statusPieChartError =
                     result['message'] ?? "Failed to load status data";
-                print("Status pie chart error: $_statusPieChartError");
+                if (kDebugMode) {
+                  print("Status pie chart error: $_statusPieChartError");
+                }
               }
             });
           }
@@ -252,17 +318,23 @@ class _DashboardScreenState extends State<DashboardScreen>
         // Start periodic updates for status pie chart
         try {
           // Make an immediate direct call to fetch data
-          print("Making immediate call to fetch status pie chart data");
+          if (kDebugMode) {
+            print("Making immediate call to fetch status pie chart data");
+          }
           _statusPieChartApi.fetchStatusPieChart(validEmpKey);
 
           // Then set up periodic updates
           _statusPieChartApi.startPeriodicUpdates(validEmpKey,
               interval: const Duration(minutes: 15));
-          print(
-              "Started periodic updates for status pie chart with validEmpKey: '$validEmpKey'");
-          print("==== STATUS PIE CHART SETUP COMPLETE ====\n");
+          if (kDebugMode) {
+            print(
+                "Started periodic updates for status pie chart with validEmpKey: '$validEmpKey'");
+            print("==== STATUS PIE CHART SETUP COMPLETE ====\n");
+          }
         } catch (e) {
-          print("Error starting periodic updates for status pie chart: $e");
+          if (kDebugMode) {
+            print("Error starting periodic updates for status pie chart: $e");
+          }
           setState(() {
             _statusPieChartError = "Error: $e";
           });
@@ -275,22 +347,30 @@ class _DashboardScreenState extends State<DashboardScreen>
         _statusPieChartError = "Employee key not found";
       });
 
-      print("Failed to start API services: Employee key is null or empty");
+      if (kDebugMode) {
+        print("Failed to start API services: Employee key is null or empty");
+      }
     }
   }
 
   // Helper method to find employee key in userData
   String? _findEmployeeKey() {
     if (widget.userData == null) {
-      print("userData is null");
+      if (kDebugMode) {
+        print("userData is null");
+      }
       return null;
     }
 
     try {
-      print(
-          "Detailed userData content for debugging: ${json.encode(widget.userData)}");
+      if (kDebugMode) {
+        print(
+            "Detailed userData content for debugging: ${json.encode(widget.userData)}");
+      }
     } catch (e) {
-      print("Error encoding userData: $e");
+      if (kDebugMode) {
+        print("Error encoding userData: $e");
+      }
     }
 
     // Fallback to hardcoded empKey for development/testing
@@ -299,7 +379,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Check for emp_key in different possible locations in userData
     if (widget.userData!.containsKey('emp_key')) {
-      print("Found emp_key directly: ${widget.userData!['emp_key']}");
+      if (kDebugMode) {
+        print("Found emp_key directly: ${widget.userData!['emp_key']}");
+      }
       foundEmpKey = widget.userData!['emp_key']?.toString();
     }
 
@@ -307,14 +389,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (foundEmpKey == null && widget.userData!.containsKey('user_data')) {
       var userData = widget.userData!['user_data'];
       if (userData is Map) {
-        if ((userData as Map).containsKey('emp_key')) {
-          print("Found emp_key in user_data: ${userData['emp_key']}");
+        if (userData.containsKey('emp_key')) {
+          if (kDebugMode) {
+            print("Found emp_key in user_data: ${userData['emp_key']}");
+          }
           foundEmpKey = userData['emp_key']?.toString();
         } else {
-          print("user_data exists but doesn't contain emp_key: $userData");
+          if (kDebugMode) {
+            print("user_data exists but doesn't contain emp_key: $userData");
+          }
         }
       } else {
-        print("user_data exists but is not a Map: $userData");
+        if (kDebugMode) {
+          print("user_data exists but is not a Map: $userData");
+        }
       }
     }
 
@@ -324,16 +412,22 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (responseData is Map && responseData.containsKey('user_data')) {
         var userData = responseData['user_data'];
         if (userData is Map && userData.containsKey('emp_key')) {
-          print(
-              "Found emp_key in response_data.user_data: ${userData['emp_key']}");
+          if (kDebugMode) {
+            print(
+                "Found emp_key in response_data.user_data: ${userData['emp_key']}");
+          }
           foundEmpKey = userData['emp_key']?.toString();
         } else {
-          print(
-              "response_data.user_data exists but doesn't contain emp_key: $userData");
+          if (kDebugMode) {
+            print(
+                "response_data.user_data exists but doesn't contain emp_key: $userData");
+          }
         }
       } else {
-        print(
-            "response_data exists but doesn't contain user_data or is not a Map: $responseData");
+        if (kDebugMode) {
+          print(
+              "response_data exists but doesn't contain user_data or is not a Map: $responseData");
+        }
       }
     }
 
@@ -341,10 +435,14 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (foundEmpKey == null && widget.userData!.containsKey('user')) {
       var user = widget.userData!['user'];
       if (user is Map && user.containsKey('emp_key')) {
-        print("Found emp_key in user: ${user['emp_key']}");
+        if (kDebugMode) {
+          print("Found emp_key in user: ${user['emp_key']}");
+        }
         foundEmpKey = user['emp_key']?.toString();
       } else {
-        print("user exists but doesn't contain emp_key: $user");
+        if (kDebugMode) {
+          print("user exists but doesn't contain emp_key: $user");
+        }
       }
     }
 
@@ -353,21 +451,31 @@ class _DashboardScreenState extends State<DashboardScreen>
       var data = widget.userData!['data'];
       if (data is Map) {
         if (data.containsKey('emp_key')) {
-          print("Found emp_key in data: ${data['emp_key']}");
+          if (kDebugMode) {
+            print("Found emp_key in data: ${data['emp_key']}");
+          }
           foundEmpKey = data['emp_key']?.toString();
         } else if (data.containsKey('user')) {
           var user = data['user'];
           if (user is Map && user.containsKey('emp_key')) {
-            print("Found emp_key in data.user: ${user['emp_key']}");
+            if (kDebugMode) {
+              print("Found emp_key in data.user: ${user['emp_key']}");
+            }
             foundEmpKey = user['emp_key']?.toString();
           } else {
-            print("data.user exists but doesn't contain emp_key: $user");
+            if (kDebugMode) {
+              print("data.user exists but doesn't contain emp_key: $user");
+            }
           }
         } else {
-          print("data exists but doesn't contain emp_key or user: $data");
+          if (kDebugMode) {
+            print("data exists but doesn't contain emp_key or user: $data");
+          }
         }
       } else {
-        print("data exists but is not a Map: $data");
+        if (kDebugMode) {
+          print("data exists but is not a Map: $data");
+        }
       }
     }
 
@@ -377,23 +485,33 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (rawResponse is Map) {
         var empKey = _findEmpKeyInMap(rawResponse);
         if (empKey != null) {
-          print("Found emp_key in raw_response: $empKey");
+          if (kDebugMode) {
+            print("Found emp_key in raw_response: $empKey");
+          }
           foundEmpKey = empKey;
         } else {
-          print(
-              "raw_response exists but emp_key not found in it: $rawResponse");
+          if (kDebugMode) {
+            print(
+                "raw_response exists but emp_key not found in it: $rawResponse");
+          }
         }
       } else {
-        print("raw_response exists but is not a Map: $rawResponse");
+        if (kDebugMode) {
+          print("raw_response exists but is not a Map: $rawResponse");
+        }
       }
     }
 
     // If we've exhausted all known paths, try a deep search in the entire userData object
     if (foundEmpKey == null) {
-      print("Trying deep search in userData for emp_key...");
+      if (kDebugMode) {
+        print("Trying deep search in userData for emp_key...");
+      }
       foundEmpKey = _findEmpKeyDeep(widget.userData!);
       if (foundEmpKey != null && foundEmpKey.isNotEmpty) {
-        print("Found emp_key via deep search: $foundEmpKey");
+        if (kDebugMode) {
+          print("Found emp_key via deep search: $foundEmpKey");
+        }
       }
     }
 
@@ -403,15 +521,19 @@ class _DashboardScreenState extends State<DashboardScreen>
       foundEmpKey = foundEmpKey.trim();
 
       // Print more details about the found key
-      print(
-          "Found empKey after trim: '$foundEmpKey', length: ${foundEmpKey.length}");
+      if (kDebugMode) {
+        print(
+            "Found empKey after trim: '$foundEmpKey', length: ${foundEmpKey.length}");
+      }
 
       // Only return if it's not empty after trimming
       if (foundEmpKey.isNotEmpty) {
         return foundEmpKey;
       } else {
-        print(
-            "Found empKey is empty after trimming, will use fallback if in debug mode");
+        if (kDebugMode) {
+          print(
+              "Found empKey is empty after trimming, will use fallback if in debug mode");
+        }
       }
     }
 
@@ -421,7 +543,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       return fallbackEmpKey;
     }
 
-    print("Missing emp_key in userData: ${widget.userData}");
+    if (kDebugMode) {
+      print("Missing emp_key in userData: ${widget.userData}");
+    }
     return null;
   }
 
@@ -737,9 +861,32 @@ class _DashboardScreenState extends State<DashboardScreen>
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          if (index == 1) {
+            // Navigate to Attendance History screen
+            String? empKey = _findEmployeeKey();
+            if (empKey != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AttendanceHistoryScreen(
+                    empKey: empKey,
+                  ),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Employee key not found. Cannot load attendance history.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          } else {
+            setState(() {
+              _currentIndex = index;
+            });
+          }
         },
         backgroundColor: Colors.white,
         elevation: 0,
@@ -768,6 +915,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         ],
       ),
     );
+  }
+
+  // Helper methods for UI components
+  Widget _buildStatusPieChart() {
+    return _buildStatusPieChartWidget();
   }
 
   Widget _buildStatCard({
@@ -907,7 +1059,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // Create a method to build the pie chart
-  Widget _buildStatusPieChart() {
+  Widget _buildStatusPieChartWidget() {
     // Random color generator that creates visually pleasing colors
     Color getRandomColor(int index, String status) {
       // Pre-defined seed colors for known status codes to maintain consistency
@@ -958,7 +1110,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     // Function to refresh the status pie chart
-    Future<void> _refreshStatusPieChart() async {
+    Future<void> refreshStatusPieChart() async {
       setState(() {
         _isLoadingStatusPieChart = true;
       });
@@ -967,13 +1119,17 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (empKey != null) {
         try {
           final baseUrl = await StatusPieChartApi.getBaseApiUrl();
-          print(
-              "Refreshing status pie chart with URL: $baseUrl, empKey: $empKey");
+          if (kDebugMode) {
+            print(
+                "Refreshing status pie chart with URL: $baseUrl, empKey: $empKey");
+          }
 
           // Direct API call for testing
           await _statusPieChartApi.callApiDirectly(empKey, baseUrl);
         } catch (e) {
-          print("Error refreshing status pie chart: $e");
+          if (kDebugMode) {
+            print("Error refreshing status pie chart: $e");
+          }
           setState(() {
             _statusPieChartError = "Error: $e";
             _isLoadingStatusPieChart = false;
@@ -1042,7 +1198,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _refreshStatusPieChart,
+              onPressed: refreshStatusPieChart,
               icon: const Icon(Icons.refresh),
               label: const Text('Refresh Data'),
               style: ElevatedButton.styleFrom(
@@ -1091,7 +1247,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _refreshStatusPieChart,
+              onPressed: refreshStatusPieChart,
               icon: const Icon(Icons.download),
               label: const Text('Load Data'),
               style: ElevatedButton.styleFrom(
@@ -1178,7 +1334,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               Expanded(
                 flex: 1,
                 child: Text(
-                  '${value.toString()} (${formattedPercentage}%)',
+                  '$value ($formattedPercentage%)',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
@@ -1225,11 +1381,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Icon(Icons.pie_chart, color: Colors.white, size: 20),
-                    const SizedBox(width: 8),
-                    const Text(
+                    Icon(Icons.pie_chart, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text(
                       'Attendance Summary',
                       style: TextStyle(
                         fontSize: 18,
@@ -1242,7 +1398,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 IconButton(
                   icon:
                       const Icon(Icons.refresh, color: Colors.white, size: 20),
-                  onPressed: _refreshStatusPieChart,
+                  onPressed: refreshStatusPieChart,
                   tooltip: 'Refresh Data',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -1310,11 +1466,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     height: 90, // Smaller fixed height for legend
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
                     child: statusMap.length <= 3
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: legendItems,
-                          )
+                        ? _buildLegendColumn(legendItems)
                         : ListView(
                             padding: EdgeInsets.zero,
                             physics: const ClampingScrollPhysics(),
@@ -1348,6 +1500,17 @@ class _DashboardScreenState extends State<DashboardScreen>
       default:
         return Icons.circle;
     }
+  }
+
+  // Helper method to build legend column
+  Widget _buildLegendColumn(List<Widget> items) {
+    // This method helps avoid the 'prefer_const_constructors' lint warning
+    // We can't use const here because items is a runtime value
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: items,
+    );
   }
 
   Widget _buildProjectsTab() {

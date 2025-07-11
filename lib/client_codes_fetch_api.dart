@@ -59,7 +59,7 @@ class ApiService {
   static Future<Map<String, dynamic>> verifyClientCode(
       String clientCode) async {
     try {
-      final verifyUrl = '$defaultBaseUrl/api/verify-client-code';
+      const verifyUrl = '$defaultBaseUrl/api/verify-client-code';
 
       final response = await http.post(
         Uri.parse(verifyUrl),
@@ -382,7 +382,10 @@ class ApiService {
             }
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Silently continue to next attempt if this one fails
+          // We're trying multiple login approaches, so individual failures are expected
+        }
       }
 
       // If no attempt was successful, return error
@@ -446,12 +449,6 @@ class ApiService {
     }
   }
 
-  // Helper to get saved client code
-  static Future<String?> _getSavedClientCode() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    return prefs.getString('client_code');
-  }
-
   // Set API URL directly
   static Future<void> setApiUrl(String url) async {
     // Clean URL by removing trailing slash if present
@@ -483,24 +480,6 @@ class ApiService {
     return url.contains('127.0.0.1') ||
         url.contains('localhost') ||
         url.contains('10.0.2.2'); // Android emulator localhost
-  }
-
-  // Special validation for local development server
-  static bool _validateLocalServerLogin(String username, String password) {
-    // Add your required credentials here - only these will work
-    const validCredentials = {
-      'admin': 'admin123',
-      'user': 'user123',
-      'test': 'test123',
-    };
-
-    // Check if provided credentials match any valid credentials
-    if (validCredentials.containsKey(username)) {
-      return validCredentials[username] == password;
-    }
-
-    // If username not found in valid credentials, login fails
-    return false;
   }
 
   // Test API connection

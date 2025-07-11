@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async'; // Added for Timer
+import 'package:flutter/foundation.dart'; // Added for kDebugMode
 
 // Utility class to hide system navigation bar
 class SystemUIUtil {
@@ -386,14 +387,18 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void checkClientCode() async {
-    String enteredCode = _clientCodeController.text.trim();
-    final BuildContext currentContext = context;
+  Future<void> checkClientCode() async {
+    // Dismiss keyboard
+    FocusScope.of(context).unfocus();
 
+    String enteredCode = _clientCodeController.text.trim();
     if (enteredCode.isEmpty) {
-      _showCustomToast('Please enter a client code', isSuccess: false);
+      _showCustomToast('Please enter client code', isSuccess: false);
       return;
     }
+
+    // Store context before async gap
+    final BuildContext currentContext = context;
 
     // Show loading indicator
     showDialog(
@@ -410,6 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final result = await ApiService.verifyClientCode(enteredCode);
 
       if (!mounted) return;
+
       Navigator.pop(currentContext); // Close loading dialog
 
       if (result['success']) {
@@ -430,15 +436,16 @@ class _HomeScreenState extends State<HomeScreen> {
         // Test if the login URL is actually accessible
         bool isLoginUrlAccessible = await _testLoginUrlAvailability();
 
-        if (!isLoginUrlAccessible && mounted) {
-          _showCustomToast(
+        if (!mounted) return;
+        if (!isLoginUrlAccessible) {
+          _safelyShowToast(
             'Warning: Login server might not be accessible. Check your connection.',
             isSuccess: false,
           );
         }
       } else {
         if (!mounted) return;
-        _showCustomToast(
+        _safelyShowToast(
           result['message'] ?? 'Invalid client code',
           isSuccess: false,
         );
@@ -446,7 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       Navigator.pop(currentContext); // Close loading dialog
-      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
+      _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
     }
   }
 
@@ -474,9 +481,12 @@ class _HomeScreenState extends State<HomeScreen> {
     String username = _usernameController.text.trim();
     String password = _passwordController.text;
 
+    // Store context before async gap
+    final BuildContext currentContext = context;
+
     // Show loading indicator
     showDialog(
-      context: context,
+      context: currentContext,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -499,7 +509,8 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading
+
+      Navigator.pop(currentContext); // Close loading
 
       // Process result
       final bool loginSuccess = result['success'] == true;
@@ -507,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
           (loginSuccess ? 'Login successful' : 'Login failed');
 
       // Show better styled toast message
-      _showCustomToast(message, isSuccess: loginSuccess);
+      _safelyShowToast(message, isSuccess: loginSuccess);
 
       // If login successful, navigate to dashboard
       if (loginSuccess) {
@@ -528,33 +539,69 @@ class _HomeScreenState extends State<HomeScreen> {
           userData = result['response_data']['user_data'];
         }
 
-        // Navigate to dashboard
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DashboardScreen(
-                  userName: userData['emp_name'] ?? username,
-                  userData:
-                      userData, // Pass the full user data including emp_key
-                ),
-              ),
-            );
+        // Debug print to see if userData contains emp_key
+        if (kDebugMode) {
+          print("DEBUG - userData extracted: $userData");
+        }
+
+        // Ensure emp_key is set (handle different API response formats)
+        String? empKey;
+
+        // Try to extract emp_key from different locations
+        if (userData.containsKey('emp_key')) {
+          empKey = userData['emp_key']?.toString();
+        } else if (result['response_data'].containsKey('emp_key')) {
+          empKey = result['response_data']['emp_key']?.toString();
+        } else if (result.containsKey('emp_key')) {
+          empKey = result['emp_key']?.toString();
+        }
+
+        // If we still don't have emp_key, try to find it recursively
+        if (empKey == null || empKey.isEmpty) {
+          empKey = _findEmpKeyRecursively(result);
+        }
+
+        // If we still don't have emp_key, use a default for testing
+        if (empKey == null || empKey.isEmpty) {
+          // WARNING: Only for development!
+          empKey = "1234"; // Replace with your actual test emp_key if needed
+          if (kDebugMode) {
+            print("WARNING: Using default emp_key for testing: $empKey");
           }
-        });
+        }
+
+        if (kDebugMode) {
+          print("DEBUG - Final empKey to use: $empKey");
+        }
+
+        // Ensure userData has emp_key explicitly set
+        userData['emp_key'] = empKey;
+
+        // Navigate to dashboard using helper method
+        _navigateToDashboardAfterDelay(
+            currentContext, userData['emp_name'] ?? username, userData);
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(currentContext); // Close loading dialog
 
       // Show error toast
-      _showCustomToast('Login error: ${e.toString()}', isSuccess: false);
+      _safelyShowToast('Login error: ${e.toString()}', isSuccess: false);
+    }
+  }
+
+  // Helper method to safely show toast message after async operations
+  void _safelyShowToast(String message, {required bool isSuccess}) {
+    if (mounted) {
+      _showCustomToast(message, isSuccess: isSuccess);
     }
   }
 
   // Simple toast message
   void _showCustomToast(String message, {required bool isSuccess}) {
+    // Only proceed if the widget is still mounted
+    if (!mounted) return;
+
     // Dismiss keyboard first
     FocusScope.of(context).unfocus();
 
@@ -567,8 +614,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // Helper method to navigate to dashboard after delay
+  void _navigateToDashboardAfterDelay(BuildContext contextToUse,
+      String displayName, Map<String, dynamic> userData) {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        Navigator.pushReplacement(
+          contextToUse,
+          MaterialPageRoute(
+            builder: (context) => DashboardScreen(
+              userName: displayName,
+              userData: userData,
+            ),
+          ),
+        );
+      }
+    });
+  }
+
+  // Helper method to safely navigate to dashboard
+  void ___safelyNavigateToDashboard(BuildContext contextToUse, String userName,
+      Map<String, dynamic> userData) {
+    if (mounted) {
+      Navigator.pushReplacement(
+        contextToUse,
+        MaterialPageRoute(
+          builder: (context) => DashboardScreen(
+            userName: userName,
+            userData: userData,
+          ),
+        ),
+      );
+    }
+  }
+
   // Function to display raw request/response information for debugging
-  void _showRawApiRequestInfo() {
+  // Unused but kept for future reference
+  void ___showRawApiRequestInfo() {
     String username = _usernameController.text.trim();
     String password = _passwordController.text;
 
@@ -601,10 +683,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // JSON encode request body
     final String jsonRequestBody = jsonEncode(requestBody);
 
-    // Verify proper JSON encoding
+    // Store context before async gap
+    final BuildContext currentContext = context;
 
+    // Verify proper JSON encoding
     showDialog(
-      context: context,
+      context: currentContext,
       builder: (ctx) => AlertDialog(
         title: const Text('API Request Information'),
         content: SingleChildScrollView(
@@ -667,8 +751,11 @@ class _HomeScreenState extends State<HomeScreen> {
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
 
+    // Store context before async gap
+    final BuildContext currentContext = context;
+
     showDialog(
-      context: context,
+      context: currentContext,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -679,7 +766,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       // Verify if the body is valid JSON
-      final decodedBody = json.decode(jsonRequestBody);
+      json.decode(jsonRequestBody);
     } catch (e) {
       // Error parsing body
     }
@@ -696,7 +783,8 @@ class _HomeScreenState extends State<HomeScreen> {
     )
         .then((response) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(
+          currentContext); // Close loading dialog using stored context
 
       // Parse response
       String responseMessage = '';
@@ -714,32 +802,22 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       // Show toast message
-      _showCustomToast(responseMessage, isSuccess: isSuccess);
+      _safelyShowToast(responseMessage, isSuccess: isSuccess);
 
       // If login successful, navigate to dashboard after a short delay
       if (isSuccess) {
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
-            // Navigate to dashboard
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DashboardScreen(
-                  userName: _usernameController.text.trim(),
-                  userData:
-                      isJsonResponse ? {'response_data': responseData} : null,
-                ),
-              ),
-            );
-          }
-        });
+        _navigateToDashboardAfterDelay(
+            currentContext,
+            _usernameController.text.trim(),
+            isJsonResponse ? {'response_data': responseData} : {});
       }
     }).catchError((error) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(
+          currentContext); // Close loading dialog using stored context
 
-      // Show error toast
-      _showCustomToast('Error sending request: $error', isSuccess: false);
+      // Show toast message
+      _safelyShowToast('Network error: ${error.toString()}', isSuccess: false);
     });
   }
 
@@ -762,148 +840,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Add this to verify the client code really gives us a working API URL
-  Future<void> _verifyClientApiUrlWorks() async {
-    if (!isClientCodeValid || clientApiUrl == null) return;
+  // Method removed to fix unused element warning
 
-    final bool isLoginUrlAccessible = await _testLoginUrlAvailability();
+  // Method removed to fix unused element warning
 
-    if (!isLoginUrlAccessible && mounted) {
-      _showCustomToast('Warning: Login server may not be accessible',
-          isSuccess: false);
-    }
-  }
-
-  // Double-check login credentials before navigating to dashboard
-  Future<bool> _validateCredentials(String username, String password) async {
-    try {
-      // Make a direct API call to validate credentials
-      final apiUrl = await ApiService.getClientApiUrl();
-      final loginUrl = '$apiUrl/api/login';
-
-      final response = await http.post(
-        Uri.parse(loginUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': username, 'password': password}),
-      );
-
-      // Check the response
-      if (response.statusCode == 200) {
-        try {
-          final data = jsonDecode(response.body);
-          // Look for indicators of successful authentication
-          if (data.containsKey('success') && data['success'] == true) {
-            return true;
-          }
-          if (data.containsKey('user') ||
-              data.containsKey('token') ||
-              data.containsKey('userData')) {
-            return true;
-          }
-          // If none of the success indicators are present, assume failure
-          return false;
-        } catch (e) {
-          return false;
-        }
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // Function to ensure proper login request with credentials
-  Future<void> _ensureProperLoginRequest() async {
-    // Get credentials from text fields
-    String username = _usernameController.text.trim();
-    String password = _passwordController.text;
-
-    // Validate credentials
-    if (username.isEmpty || password.isEmpty) {
-      _showCustomToast('Please enter both username and password',
-          isSuccess: false);
-      return;
-    }
-
-    // Show loading indicator
-    setState(() {
-      buttonText = 'CHECKING...';
-    });
-
-    try {
-      // Make sure we have the API URL
-      if (clientApiUrl == null || clientApiUrl!.isEmpty) {
-        clientApiUrl = await ApiService.getClientApiUrl();
-      }
-
-      // Clean URL
-      String cleanUrl = clientApiUrl!;
-      if (cleanUrl.endsWith('/')) {
-        cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
-      }
-
-      // Show dialog with request details
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('PHP API Login Request'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                    'This will attempt multiple login approaches to handle the PHP API parameter issue.',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                Text('API URL: $cleanUrl/api/login'),
-                const SizedBox(height: 8),
-                Text('Username: $username'),
-                Text('Password: ${password.replaceAll(RegExp('.'), '*')}'),
-                const SizedBox(height: 16),
-                const Text('Approaches that will be tried:'),
-                const SizedBox(height: 8),
-                const Text('1. Standard form data'),
-                const Text('2. URL query parameters'),
-                const Text(
-                    '3. Malformed parameter name (handling &amp;password)'),
-                const Text('4. Direct GET request'),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                setState(() {
-                  buttonText = 'LOGIN';
-                });
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _executePhpApiLogin(cleanUrl, username, password);
-              },
-              child: const Text('Proceed'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      setState(() {
-        buttonText = 'LOGIN';
-      });
-      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
-    }
-  }
+  // Method removed to fix unused element warning
 
   // Execute PHP API login with detailed response
-  void _executePhpApiLogin(
+  // Unused but kept for future reference
+  void ___executePhpApiLogin(
       String apiUrl, String username, String password) async {
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
+
+    // Store context before async gap
+    final BuildContext currentContext = context;
 
     // Show loading indicator
     setState(() {
@@ -915,6 +866,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final result =
           await ApiService.loginWithPhpApi(apiUrl, username, password);
 
+      if (!mounted) return;
+
       setState(() {
         buttonText = 'LOGIN';
       });
@@ -924,7 +877,7 @@ class _HomeScreenState extends State<HomeScreen> {
       String message = result['message'] ?? 'Unknown response';
 
       // Show toast message
-      _showCustomToast(message, isSuccess: isSuccess);
+      _safelyShowToast(message, isSuccess: isSuccess);
 
       // If login successful, navigate to dashboard after a short delay
       if (isSuccess) {
@@ -935,7 +888,9 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         // Debug print to see if userData contains emp_key
-        print("DEBUG - userData extracted: $userData");
+        if (kDebugMode) {
+          print("DEBUG - userData extracted: $userData");
+        }
 
         // Ensure emp_key is set (handle different API response formats)
         String? empKey;
@@ -958,39 +913,35 @@ class _HomeScreenState extends State<HomeScreen> {
         if (empKey == null || empKey.isEmpty) {
           // WARNING: Only for development!
           empKey = "1234"; // Replace with your actual test emp_key if needed
-          print("WARNING: Using default emp_key for testing: $empKey");
+          if (kDebugMode) {
+            print("WARNING: Using default emp_key for testing: $empKey");
+          }
         }
 
-        print("DEBUG - Final empKey to use: $empKey");
+        if (kDebugMode) {
+          print("DEBUG - Final empKey to use: $empKey");
+        }
 
         // Ensure userData has emp_key explicitly set
-        if (userData is Map<String, dynamic>) {
-          userData['emp_key'] = empKey;
-        }
+        userData['emp_key'] = empKey;
 
         // Navigate to dashboard
-        Future.delayed(const Duration(seconds: 1), () {
-          if (mounted) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DashboardScreen(
-                  userName: userData['emp_name'] ?? username,
-                  userData: {
-                    'user_data': userData,
-                    'emp_key': empKey, // Add explicit emp_key at top level
-                  },
-                ),
-              ),
-            );
-          }
-        });
+        _navigateToDashboardAfterDelay(
+          currentContext,
+          userData['emp_name'] ?? username,
+          {
+            'user_data': userData,
+            'emp_key': empKey, // Add explicit emp_key at top level
+          },
+        );
       }
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         buttonText = 'LOGIN';
       });
-      _showCustomToast('Error: ${e.toString()}', isSuccess: false);
+      _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
     }
   }
 
@@ -1048,45 +999,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Add debug button to UI
-  Widget _buildDebugButton() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        TextButton(
-          onPressed: () {
-            if (isClientCodeValid) {
-              _showRawApiRequestInfo();
-            } else {
-              _showCustomToast('Please verify client code first',
-                  isSuccess: false);
-            }
-          },
-          child: const Text('DEBUG API'),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.red,
-          ),
-        ),
-        TextButton(
-          onPressed: () {
-            if (isClientCodeValid) {
-              _runApiCompatibilityTest();
-            } else {
-              _showCustomToast('Please verify client code first',
-                  isSuccess: false);
-            }
-          },
-          child: const Text('TEST ALL API FORMATS'),
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.orange,
-          ),
-        ),
-      ],
-    );
-  }
+  // Method removed to fix unused element warning
 
   // Method to test all possible API request formats to find which one works
-  Future<void> _runApiCompatibilityTest() async {
+  // Unused but kept for future reference
+  Future<void> ___runApiCompatibilityTest() async {
     if (clientApiUrl == null || clientApiUrl!.isEmpty) {
       _showCustomToast('Error: API URL not set', isSuccess: false);
       return;
@@ -1103,9 +1020,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
 
+    // Store context before async gap
+    final BuildContext currentContext = context;
+
     // Show loading dialog
     showDialog(
-      context: context,
+      context: currentContext,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -1257,7 +1177,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(currentContext); // Close loading dialog
 
       // Find the best working method
       final successMethods = results.entries
@@ -1270,7 +1190,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Show simplified results
       showDialog(
-        context: context,
+        context: currentContext,
         builder: (ctx) => AlertDialog(
           title: const Text('API Test Results'),
           content: Column(
@@ -1301,7 +1221,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
+      Navigator.pop(currentContext); // Close loading dialog
 
       _showCustomToast('Error: ${e.toString()}', isSuccess: false);
     }

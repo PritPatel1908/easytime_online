@@ -164,7 +164,7 @@ class _MonthlyWorkHoursDetailScreenState
         // Wait for the list to build, then scroll to today
         Future.delayed(const Duration(milliseconds: 300), () {
           if (_scrollController.hasClients) {
-            final itemHeight = 72.0; // Approximate height of each list item
+            const itemHeight = 72.0; // Approximate height of each list item
             _scrollController.animateTo(
               i * itemHeight,
               duration: const Duration(milliseconds: 500),
@@ -233,8 +233,8 @@ class _MonthlyWorkHoursDetailScreenState
           ),
           const SizedBox(height: 20),
           Shimmer.fromColors(
-            baseColor: Colors.grey[300]!,
-            highlightColor: Colors.grey[100]!,
+            baseColor: Colors.grey[300]!.withAlpha(255),
+            highlightColor: Colors.grey[100]!.withAlpha(255),
             child: const Text(
               'Loading work hours data...',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -430,7 +430,7 @@ class _MonthlyWorkHoursDetailScreenState
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withAlpha(13), // 0.05 * 255 = ~13
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -477,8 +477,6 @@ class _MonthlyWorkHoursDetailScreenState
 
               // Parse date to show in better format
               final DateTime parsedDate = DateTime.parse(date);
-              final String formattedDate =
-                  DateFormat('dd MMM (EEE)').format(parsedDate);
 
               // Check if work hours is zero
               final bool isZeroHours = workHours == "00:00";
@@ -540,7 +538,7 @@ class _MonthlyWorkHoursDetailScreenState
                       : null,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withAlpha(13), // 0.05 * 255 = ~13
                       blurRadius: 5,
                       offset: const Offset(0, 2),
                     ),
@@ -568,7 +566,8 @@ class _MonthlyWorkHoursDetailScreenState
                             shape: BoxShape.circle,
                             color: isZeroHours
                                 ? Colors.grey[200]
-                                : const Color(0xFF1E3C72).withOpacity(0.1),
+                                : const Color(0xFF1E3C72)
+                                    .withAlpha(26), // 0.1 * 255 = ~26
                           ),
                           child: Center(
                             child: Text(
@@ -634,8 +633,8 @@ class _MonthlyWorkHoursDetailScreenState
                                   ),
                                   child: Text(
                                     _getStatusText(status),
-                                    style: TextStyle(
-                                      color: _getStatusTextColor(status),
+                                    style: const TextStyle(
+                                      color: Colors.white,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -651,7 +650,8 @@ class _MonthlyWorkHoursDetailScreenState
                           decoration: BoxDecoration(
                             color: isZeroHours
                                 ? Colors.grey[200]
-                                : const Color(0xFF1E3C72).withOpacity(0.1),
+                                : const Color(0xFF1E3C72)
+                                    .withAlpha(26), // 0.1 * 255 = ~26
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -694,7 +694,7 @@ class _MonthlyWorkHoursDetailScreenState
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1E3C72).withOpacity(0.3),
+            color: const Color(0xFF1E3C72).withAlpha(77), // 0.3 * 255 = ~77
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -734,7 +734,7 @@ class _MonthlyWorkHoursDetailScreenState
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withAlpha(51), // 0.2 * 255 = ~51
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -862,7 +862,7 @@ class _MonthlyWorkHoursDetailScreenState
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withAlpha(13), // 0.05 * 255 = ~13
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

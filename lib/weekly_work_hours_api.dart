@@ -1,7 +1,8 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart'; // Import for kDebugMode
 
 class WeeklyWorkHoursApi {
   // Singleton instance
@@ -72,11 +73,15 @@ class WeeklyWorkHoursApi {
       // Create API endpoint URL
       final apiUrl = '$cleanUrl/api/weekly_work_hours';
 
-      print('Fetching weekly work hours from: $apiUrl with emp_key: $empKey');
+      if (kDebugMode) {
+        print('Fetching weekly work hours from: $apiUrl with emp_key: $empKey');
+      }
 
       // Try form-encoded request first
       try {
-        print('Trying form-encoded request with emp_key=$empKey');
+        if (kDebugMode) {
+          print('Trying form-encoded request with emp_key=$empKey');
+        }
         final formResponse = await http.post(
           Uri.parse(apiUrl),
           headers: {
@@ -87,8 +92,10 @@ class WeeklyWorkHoursApi {
           },
         ).timeout(const Duration(seconds: 15));
 
-        print('Form response status: ${formResponse.statusCode}');
-        print('Form response body: ${formResponse.body}');
+        if (kDebugMode) {
+          print('Form response status: ${formResponse.statusCode}');
+          print('Form response body: ${formResponse.body}');
+        }
 
         if (formResponse.statusCode == 200) {
           try {
@@ -101,8 +108,10 @@ class WeeklyWorkHoursApi {
 
               if (success && data.containsKey('work_hours')) {
                 var workHours = data['work_hours'];
-                print(
-                    'Weekly work hours from form API: $workHours (${workHours.runtimeType})');
+                if (kDebugMode) {
+                  print(
+                      'Weekly work hours from form API: $workHours (${workHours.runtimeType})');
+                }
 
                 return {
                   'success': true,
@@ -112,17 +121,23 @@ class WeeklyWorkHoursApi {
               }
             }
           } catch (e) {
-            print('Error parsing form response: $e');
+            if (kDebugMode) {
+              print('Error parsing form response: $e');
+            }
           }
         }
       } catch (e) {
-        print('Error with form request: $e');
+        if (kDebugMode) {
+          print('Error with form request: $e');
+        }
       }
 
       // Try a different approach - direct URL with emp_key as query parameter
       try {
         final directUrl = '$apiUrl?emp_key=$empKey';
-        print('Trying direct URL request: $directUrl');
+        if (kDebugMode) {
+          print('Trying direct URL request: $directUrl');
+        }
 
         final directResponse = await http.get(
           Uri.parse(directUrl),
@@ -131,8 +146,10 @@ class WeeklyWorkHoursApi {
           },
         ).timeout(const Duration(seconds: 15));
 
-        print('Direct URL response status: ${directResponse.statusCode}');
-        print('Direct URL response body: ${directResponse.body}');
+        if (kDebugMode) {
+          print('Direct URL response status: ${directResponse.statusCode}');
+          print('Direct URL response body: ${directResponse.body}');
+        }
 
         if (directResponse.statusCode == 200) {
           try {
@@ -145,7 +162,9 @@ class WeeklyWorkHoursApi {
 
               if (success && data.containsKey('work_hours')) {
                 var workHours = data['work_hours'];
-                print('Weekly work hours from direct URL: $workHours');
+                if (kDebugMode) {
+                  print('Weekly work hours from direct URL: $workHours');
+                }
 
                 return {
                   'success': true,
@@ -155,16 +174,22 @@ class WeeklyWorkHoursApi {
               }
             }
           } catch (e) {
-            print('Error parsing direct URL response: $e');
+            if (kDebugMode) {
+              print('Error parsing direct URL response: $e');
+            }
           }
         }
       } catch (e) {
-        print('Error with direct URL request: $e');
+        if (kDebugMode) {
+          print('Error with direct URL request: $e');
+        }
       }
 
       // If previous methods didn't work, try JSON
       try {
-        print('Trying JSON request with emp_key=$empKey');
+        if (kDebugMode) {
+          print('Trying JSON request with emp_key=$empKey');
+        }
         final jsonResponse = await http
             .post(
               Uri.parse(apiUrl),
@@ -178,8 +203,10 @@ class WeeklyWorkHoursApi {
             )
             .timeout(const Duration(seconds: 15));
 
-        print('JSON response status: ${jsonResponse.statusCode}');
-        print('JSON response body: ${jsonResponse.body}');
+        if (kDebugMode) {
+          print('JSON response status: ${jsonResponse.statusCode}');
+          print('JSON response body: ${jsonResponse.body}');
+        }
 
         if (jsonResponse.statusCode == 200) {
           try {
@@ -192,8 +219,10 @@ class WeeklyWorkHoursApi {
 
               if (success && data.containsKey('work_hours')) {
                 var workHours = data['work_hours'];
-                print(
-                    'Weekly work hours from JSON API: $workHours (${workHours.runtimeType})');
+                if (kDebugMode) {
+                  print(
+                      'Weekly work hours from JSON API: $workHours (${workHours.runtimeType})');
+                }
 
                 return {
                   'success': true,
@@ -201,7 +230,9 @@ class WeeklyWorkHoursApi {
                   'raw_response': data,
                 };
               } else {
-                print('API response missing work_hours: $data');
+                if (kDebugMode) {
+                  print('API response missing work_hours: $data');
+                }
                 return {
                   'success': false,
                   'message':
@@ -211,7 +242,9 @@ class WeeklyWorkHoursApi {
               }
             }
           } catch (e) {
-            print('Error parsing JSON response: $e');
+            if (kDebugMode) {
+              print('Error parsing JSON response: $e');
+            }
           }
         }
 
@@ -231,7 +264,9 @@ class WeeklyWorkHoursApi {
           };
         }
       } catch (e) {
-        print('Error with JSON request: $e');
+        if (kDebugMode) {
+          print('Error with JSON request: $e');
+        }
       }
 
       // If all attempts failed
@@ -240,7 +275,9 @@ class WeeklyWorkHoursApi {
         'message': 'Failed to get weekly work hours after multiple attempts',
       };
     } catch (e) {
-      print('Error connecting to server: $e');
+      if (kDebugMode) {
+        print('Error connecting to server: $e');
+      }
       return {
         'success': false,
         'message': 'Error connecting to server: ${e.toString()}',

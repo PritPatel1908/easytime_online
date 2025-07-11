@@ -12,8 +12,11 @@ import 'package:easytime_online/main.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
+    // Create a SystemUIObserver for testing
+    final systemUIObserver = SystemUIObserver();
+
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(MyApp(systemUIObserver: systemUIObserver));
 
     // Verify that the app builds without errors
     expect(find.byType(MaterialApp), findsOneWidget);
