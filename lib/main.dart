@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:easytime_online/client_codes_fetch_api.dart';
 import 'package:easytime_online/dashboard_screen.dart';
 import 'package:easytime_online/splash_screen.dart';
+import 'package:easytime_online/main_navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -210,11 +211,14 @@ class MyApp extends StatelessWidget {
             vertical: 16,
           ),
         ),
-        // Performance optimizations
+        // Custom page transitions for smooth navigation
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
-            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.android: ZoomPageTransitionsBuilder(),
             TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
           },
         ),
         // Scrolling physics for better performance
@@ -624,11 +628,24 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(
         localContext,
-        MaterialPageRoute(
-          builder: (context) => DashboardScreen(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => MainNavigation(
             userName: displayName,
             userData: userData,
+            empKey: userData['emp_key'] ?? '',
           ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(0.0, 0.3);
+            const end = Offset.zero;
+            const curve = Curves.easeOut;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var offsetAnimation = animation.drive(tween);
+            return SlideTransition(
+              position: offsetAnimation,
+              child: FadeTransition(opacity: animation, child: child),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 400),
         ),
       );
     });

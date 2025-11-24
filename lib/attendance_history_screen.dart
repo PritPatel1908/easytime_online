@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:easytime_online/attendance_history_api.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'; // Added for kDebugMode
+import 'package:easytime_online/attendance_history_api.dart';
+import 'package:easytime_online/custom_page_transitions.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   final String empKey;
@@ -313,54 +314,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                         : _showAsTable
                             ? _buildAttendanceTable()
                             : _buildAttendanceCalendar(),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 1, // Set Attendance as selected
-        backgroundColor: Colors.white,
-        elevation: 0,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        onDestinationSelected: (index) {
-          // Handle navigation here
-          switch (index) {
-            case 0:
-              // Navigate to Dashboard - using pop to return to dashboard
-              Navigator.pop(context);
-              break;
-            case 1:
-              // Already on Attendance screen
-              break;
-            case 2:
-              // Navigate to Hours screen
-              Navigator.pushReplacementNamed(context, '/hours');
-              break;
-            case 3:
-              // Navigate to Profile screen
-              Navigator.pushReplacementNamed(context, '/profile');
-              break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.access_time_outlined),
-            selectedIcon: Icon(Icons.access_time),
-            label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.task_outlined),
-            selectedIcon: Icon(Icons.task),
-            label: 'Tasks',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
           ),
         ],
       ),
