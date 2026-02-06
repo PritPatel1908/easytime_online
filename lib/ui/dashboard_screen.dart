@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+<<<<<<< HEAD:lib/ui/dashboard_screen.dart
 import 'dart:math' as math;
 import 'package:easytime_online/api/monthly_work_hours_api.dart';
 import 'package:easytime_online/api/today_punches_api.dart';
@@ -8,6 +9,18 @@ import 'package:easytime_online/ui/monthly_work_hours_detail_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
 import 'package:easytime_online/api/attendance_history_api.dart';
+=======
+import 'package:easytime_online/monthly_work_hours_api.dart';
+import 'package:easytime_online/weekly_work_hours_api.dart';
+import 'package:easytime_online/monthly_work_hours_detail_screen.dart';
+import 'package:easytime_online/status_pie_chart_api.dart';
+import 'package:easytime_online/attendance_history_screen.dart';
+import 'package:easytime_online/attendance_history_api.dart';
+import 'package:easytime_online/custom_page_transitions.dart';
+import 'package:easytime_online/animated_bottom_navigation.dart';
+import 'package:easytime_online/data_sync_service.dart';
+import 'package:easytime_online/data_storage_service.dart';
+>>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -17,8 +30,9 @@ import 'package:easytime_online/main/main.dart';
 class DashboardScreen extends StatefulWidget {
   final String? userName;
   final Map<String, dynamic>? userData;
+  final String empKey;
 
-  const DashboardScreen({super.key, this.userName, this.userData});
+  const DashboardScreen({super.key, this.userName, this.userData, required this.empKey});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -26,7 +40,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  int _currentIndex = 0;
   final ScrollController _mainScrollController = ScrollController();
   late TabController _tabController;
 
@@ -42,11 +55,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoadingTodayPunches = false;
   String _todayPunchesError = "";
 
-  // Work hours API services
+  // Data sync service
+  final DataSyncService _dataSyncService = DataSyncService();
+  
+  // API instances
   final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
   final TodayPunchesApi _todayPunchesApi = TodayPunchesApi();
   final StatusPieChartApi _statusPieChartApi = StatusPieChartApi();
   final AttendanceHistoryApi _attendanceHistoryApi = AttendanceHistoryApi();
+  
+  // Stream subscriptions
   StreamSubscription? _monthlyWorkHoursSubscription;
   StreamSubscription? _todayPunchesSubscription;
   StreamSubscription? _statusPieChartSubscription;
@@ -55,6 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Map<String, dynamic>? _statusPieChartData;
   bool _isLoadingStatusPieChart = false;
   String _statusPieChartError = "";
+  bool _isInitialLoad = true;
 
   // Reorderable stats state
   List<String> _statOrder = ['Monthly', 'Today'];
@@ -98,6 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     }
 
+<<<<<<< HEAD:lib/ui/dashboard_screen.dart
     // Start background service for work hours
     _setupWorkHoursServices();
 
@@ -106,6 +126,49 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Prefetch attendance history data in background
     _prefetchAttendanceHistory();
+=======
+    // Initialize data sync service
+    _initializeDataSync();
+  }
+  
+  // Initialize data sync service
+  Future<void> _initializeDataSync() async {
+    try {
+      // Load data from local storage first, then sync with API
+      await _dataSyncService.initialize(widget.empKey);
+      
+      // Load monthly work hours
+      final monthlyHours = await DataStorageService.getMonthlyWorkHours();
+      if (monthlyHours != null) {
+        setState(() {
+          _monthlyWorkHours = monthlyHours;
+          _isLoadingMonthlyWorkHours = false;
+        });
+      }
+      
+      // Load weekly work hours
+      final weeklyHours = await DataStorageService.getWeeklyWorkHours();
+      if (weeklyHours != null) {
+        setState(() {
+          _weeklyWorkHours = weeklyHours;
+          _isLoadingWeeklyWorkHours = false;
+        });
+      }
+      
+      // Load status pie chart data
+      final pieChartData = await DataStorageService.getStatusPieChartData();
+      if (pieChartData != null) {
+        setState(() {
+          _statusPieChartData = pieChartData;
+          _isLoadingStatusPieChart = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error initializing data sync: $e");
+      }
+    }
+>>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
   }
 
   Future<void> _loadStatOrder() async {
@@ -326,19 +389,33 @@ class _DashboardScreenState extends State<DashboardScreen>
           if (mounted) {
             setState(() {
               _isLoadingStatusPieChart = false;
+              _isInitialLoad = false;
 
               if (result['success'] == true &&
                   result.containsKey('status_data')) {
-                _statusPieChartData = result['status_data'];
+                // Compare with existing data before updating
+                final newData = result['status_data'];
+                final bool shouldUpdate = _statusPieChartData == null || 
+                    !_areMapContentsEqual(_statusPieChartData!, newData);
+                
+                if (shouldUpdate) {
+                  _statusPieChartData = newData;
+                  // Save to local storage for persistence
+                  DataStorageService.saveStatusPieChartData(newData);
+                }
+                
                 _statusPieChartError = "";
-                if (kDebugMode) {
+                if (kDebugMode && shouldUpdate) {
                   print("Updated status pie chart data: $_statusPieChartData");
                 }
               } else {
-                _statusPieChartError =
-                    result['message'] ?? "Failed to load status data";
-                if (kDebugMode) {
-                  print("Status pie chart error: $_statusPieChartError");
+                // Only update error if we don't already have data
+                if (_statusPieChartData == null) {
+                  _statusPieChartError =
+                      result['message'] ?? "Failed to load status data";
+                  if (kDebugMode) {
+                    print("Status pie chart error: $_statusPieChartError");
+                  }
                 }
               }
             });
@@ -381,6 +458,19 @@ class _DashboardScreenState extends State<DashboardScreen>
         print("Failed to start API services: Employee key is null or empty");
       }
     }
+  }
+
+  // Helper method to compare two maps for equality
+  bool _areMapContentsEqual(Map<String, dynamic> map1, Map<String, dynamic> map2) {
+    if (map1.length != map2.length) return false;
+    
+    for (final key in map1.keys) {
+      if (!map2.containsKey(key)) return false;
+      
+      if (map1[key] != map2[key]) return false;
+    }
+    
+    return true;
   }
 
   // Helper method to find employee key in userData
@@ -862,6 +952,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ],
       ),
+<<<<<<< HEAD:lib/ui/dashboard_screen.dart
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           labelTextStyle: MaterialStatePropertyAll(
@@ -925,6 +1016,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           ],
         ),
       ),
+=======
+>>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
     );
   }
 
@@ -1280,7 +1373,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         case 'PP':
           return 'Present';
         case 'WO':
-          return 'Work Off';
+          return 'Week Off';
         case 'AA':
           return 'Absent';
         case 'HD':
@@ -1309,8 +1402,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 "Refreshing status pie chart with URL: $baseUrl, empKey: $empKey");
           }
 
-          // Direct API call for testing
-          await _statusPieChartApi.callApiDirectly(empKey, baseUrl);
+          // Fetch data properly through the main API method
+          _statusPieChartApi.fetchStatusPieChart(empKey);
         } catch (e) {
           if (kDebugMode) {
             print("Error refreshing status pie chart: $e");
@@ -1456,7 +1549,12 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Calculate total for percentage
     statusMap.forEach((key, value) {
-      total += (value as num).toDouble();
+      // Handle both numeric and boolean values
+      if (value is num) {
+        total += value.toDouble();
+      } else if (value is bool) {
+        total += value ? 1.0 : 0.0;
+      }
     });
 
     // Create sections and legends with random colors
@@ -1465,10 +1563,19 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Generate random color based on index and status code
       final color = getRandomColor(colorIndex++, key);
 
+      // Convert value to double based on its type
+      double doubleValue = 0.0;
+      if (value is num) {
+        doubleValue = value.toDouble();
+      } else if (value is bool) {
+        doubleValue = value ? 1.0 : 0.0;
+      }
+
       final double percentage =
-          total > 0 ? (value as num).toDouble() / total * 100 : 0;
+          total > 0 ? doubleValue / total * 100 : 0;
       final formattedPercentage = percentage.toStringAsFixed(1);
 
+<<<<<<< HEAD:lib/ui/dashboard_screen.dart
       // Create pie section; do NOT render percentage text inside the slice.
       // Percentages will be shown in the legend to avoid overlap on small screens.
       sections.add(
@@ -1477,6 +1584,15 @@ class _DashboardScreenState extends State<DashboardScreen>
           value: (value as num).toDouble(),
           title: '', // hide title inside slice to prevent overlap
           radius: 70,
+=======
+      // Create pie section with count value instead of percentage
+      sections.add(
+        PieChartSectionData(
+          color: color,
+          value: doubleValue,
+          title: '$value',
+          radius: 70, // Matches the new radius in the chart
+>>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
           titleStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -1533,7 +1649,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Return the completed pie chart widget with clean design
     return Container(
-      height: 385, // Slightly increased to accommodate the added spacing
+      height: 450, // Increased to accommodate the status summary section
       margin: const EdgeInsets.fromLTRB(
           16, 0, 16, 10), // Reduced bottom margin from 16 to 10
       decoration: BoxDecoration(
@@ -1661,6 +1777,51 @@ class _DashboardScreenState extends State<DashboardScreen>
                             physics: const ClampingScrollPhysics(),
                             children: legendItems,
                           ),
+                  ),
+                  
+                  // Status counts summary section
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[200]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Status Summary',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: statusMap.entries.map((entry) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: getRandomColor(statusMap.keys.toList().indexOf(entry.key), entry.key).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '${getStatusLabel(entry.key)}: ${entry.value}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: getRandomColor(statusMap.keys.toList().indexOf(entry.key), entry.key),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

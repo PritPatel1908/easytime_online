@@ -95,8 +95,7 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) =>
-              const HomeScreen(title: 'EasyTime Online'),
+          pageBuilder: (_, __, ___) => const HomeScreen(title: 'EasyTime Online'),
           transitionDuration: const Duration(milliseconds: 800),
           transitionsBuilder: (_, animation, __, child) {
             return FadeTransition(
