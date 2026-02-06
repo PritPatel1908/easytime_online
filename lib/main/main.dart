@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:easytime_online/client_codes_fetch_api.dart';
-import 'package:easytime_online/dashboard_screen.dart';
-import 'package:easytime_online/splash_screen.dart';
+import 'package:easytime_online/api/client_codes_fetch_api.dart';
+import 'package:easytime_online/ui/dashboard_screen.dart';
+import 'package:easytime_online/ui/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -229,6 +229,14 @@ class MyApp extends StatelessWidget {
         // Ensure system UI settings are maintained throughout the app
         SystemUIUtil.hideSystemNavigationBar();
 
+        // Compute a global responsive text scale factor based on screen width.
+        // This reduces font sizes proportionally on narrow screens to avoid
+        // aggressive truncation (ellipsis) across the app.
+        final mq = MediaQuery.of(context);
+        final double width = mq.size.width;
+        final double screenScale = (width / 360).clamp(0.75, 1.0);
+        final double effectiveTextScale = mq.textScaleFactor * screenScale;
+
         // Global scrolling behavior with system UI control
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: const SystemUiOverlayStyle(
@@ -243,7 +251,10 @@ class MyApp extends StatelessWidget {
               physics: const ClampingScrollPhysics(),
               overscroll: false,
             ),
-            child: child!,
+            child: MediaQuery(
+              data: mq.copyWith(textScaleFactor: effectiveTextScale),
+              child: child!,
+            ),
           ),
         );
       },
@@ -397,12 +408,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
     // Show loading indicator
     showDialog(
-      context: currentContext,
+      context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -416,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
 
-      Navigator.pop(currentContext); // Close loading dialog
+      if (mounted) Navigator.pop(context); // Close loading dialog
 
       if (result['success']) {
         // Save both the client code and API URL
@@ -452,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(currentContext); // Close loading dialog
+      if (mounted) Navigator.pop(context); // Close loading dialog
       _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
     }
   }
@@ -481,12 +489,9 @@ class _HomeScreenState extends State<HomeScreen> {
     String username = _usernameController.text.trim();
     String password = _passwordController.text;
 
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
     // Show loading indicator
     showDialog(
-      context: currentContext,
+      context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -510,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
 
-      Navigator.pop(currentContext); // Close loading
+      if (mounted) Navigator.pop(context); // Close loading
 
       // Process result
       final bool loginSuccess = result['success'] == true;
@@ -579,11 +584,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // Navigate to dashboard using helper method
         _navigateToDashboardAfterDelay(
-            currentContext, userData['emp_name'] ?? username, userData);
+            userData['emp_name'] ?? username, userData);
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(currentContext); // Close loading dialog
+      if (mounted) Navigator.pop(context); // Close loading dialog
 
       // Show error toast
       _safelyShowToast('Login error: ${e.toString()}', isSuccess: false);
@@ -615,15 +620,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Helper method to navigate to dashboard after delay
-  void _navigateToDashboardAfterDelay(BuildContext contextToUse,
+  void _navigateToDashboardAfterDelay(
       String displayName, Map<String, dynamic> userData) {
-    // Store a reference to the context
-    final BuildContext localContext = contextToUse;
-
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
       Navigator.pushReplacement(
-        localContext,
+        context,
         MaterialPageRoute(
           builder: (context) => DashboardScreen(
             userName: displayName,
@@ -1249,7 +1251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               rememberMe = value;
                             });
                           },
-                          activeColor: const Color(0xFF2C3E50),
+                          activeThumbColor: const Color(0xFF2C3E50),
                         ),
                       ],
                     ),

@@ -46,7 +46,7 @@ Future<List<ClientData>> fetchClientCodes() async {
 }
 
 class ApiService {
-  static const String defaultBaseUrl = 'http://att.easytimeonline.in:121';
+  static const String defaultBaseUrl = 'http://att.easytimeonline.in:9095';
 
   // Get the stored base API URL
   static Future<String> getClientApiUrl() async {

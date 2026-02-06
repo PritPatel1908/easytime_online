@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:easytime_online/monthly_work_hours_api.dart';
-import 'package:easytime_online/weekly_work_hours_api.dart';
-import 'package:easytime_online/monthly_work_hours_detail_screen.dart';
-import 'package:easytime_online/status_pie_chart_api.dart';
-import 'package:easytime_online/attendance_history_screen.dart';
-import 'package:easytime_online/attendance_history_api.dart';
+import 'dart:math' as math;
+import 'package:easytime_online/api/monthly_work_hours_api.dart';
+import 'package:easytime_online/api/today_punches_api.dart';
+import 'package:easytime_online/ui/monthly_work_hours_detail_screen.dart';
+import 'package:easytime_online/api/status_pie_chart_api.dart';
+import 'package:easytime_online/ui/attendance_history_screen.dart';
+import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:async';
 import 'dart:convert';
-import 'main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easytime_online/main/main.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String? userName;
@@ -33,24 +35,33 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoadingMonthlyWorkHours = false;
   String _monthlyWorkHoursError = "";
 
-  // Add state variables for weekly work hours
-  String _weeklyWorkHours = "0.0";
-  bool _isLoadingWeeklyWorkHours = false;
-  String _weeklyWorkHoursError = "";
+  // Add state variables for today's punches
+  // Today's punch values (in/out)
+  String _inPunch = "";
+  String _outPunch = "";
+  bool _isLoadingTodayPunches = false;
+  String _todayPunchesError = "";
 
   // Work hours API services
   final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
-  final WeeklyWorkHoursApi _weeklyWorkHoursApi = WeeklyWorkHoursApi();
+  final TodayPunchesApi _todayPunchesApi = TodayPunchesApi();
   final StatusPieChartApi _statusPieChartApi = StatusPieChartApi();
   final AttendanceHistoryApi _attendanceHistoryApi = AttendanceHistoryApi();
   StreamSubscription? _monthlyWorkHoursSubscription;
-  StreamSubscription? _weeklyWorkHoursSubscription;
+  StreamSubscription? _todayPunchesSubscription;
   StreamSubscription? _statusPieChartSubscription;
 
   // Status Pie Chart Data
   Map<String, dynamic>? _statusPieChartData;
   bool _isLoadingStatusPieChart = false;
   String _statusPieChartError = "";
+
+  // Reorderable stats state
+  List<String> _statOrder = ['Monthly', 'Today'];
+  bool _isReorderMode = false; // when true, scrolling disabled
+  String? _activeDragItem; // item allowed to be dragged after long hold
+  Timer? _longPressTimer;
+  bool _isHolding = false; // true while finger is down during long-hold
 
   @override
   void initState() {
@@ -67,7 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       systemNavigationBarDividerColor: Colors.transparent,
     ));
 
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
 
     // Debug print userData with more detailed logging
     if (kDebugMode) {
@@ -90,8 +101,58 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Start background service for work hours
     _setupWorkHoursServices();
 
+    // Load saved stat order
+    _loadStatOrder();
+
     // Prefetch attendance history data in background
     _prefetchAttendanceHistory();
+  }
+
+  Future<void> _loadStatOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('dashboard_stat_order');
+      if (list != null && list.isNotEmpty) {
+        setState(() {
+          _statOrder = list;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error loading stat order: $e');
+    }
+  }
+
+  Future<void> _saveStatOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('dashboard_stat_order', _statOrder);
+    } catch (e) {
+      if (kDebugMode) print('Error saving stat order: $e');
+    }
+  }
+
+  void _startLongHold(String id) {
+    _longPressTimer?.cancel();
+    setState(() {
+      _isHolding = true;
+    });
+    _longPressTimer = Timer(const Duration(seconds: 10), () {
+      setState(() {
+        _isReorderMode = true;
+        _activeDragItem = id;
+        _isHolding = false; // reorder mode now controls scrolling
+      });
+    });
+  }
+
+  void _cancelLongHold() {
+    _longPressTimer?.cancel();
+    _longPressTimer = null;
+    if (_isHolding) {
+      setState(() {
+        _isHolding = false;
+      });
+    }
   }
 
   // Prefetch attendance history data in background
@@ -125,7 +186,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Set loading state
       setState(() {
         _isLoadingMonthlyWorkHours = true;
-        _isLoadingWeeklyWorkHours = true;
+        _isLoadingTodayPunches = true;
       });
 
       // Subscribe to monthly work hours updates
@@ -188,72 +249,41 @@ class _DashboardScreenState extends State<DashboardScreen>
         }
       });
 
-      // Subscribe to weekly work hours updates
-      _weeklyWorkHoursSubscription =
-          _weeklyWorkHoursApi.workHoursStream.listen((result) {
+      // Subscribe to today punches updates
+      _todayPunchesSubscription = _todayPunchesApi.punchStream.listen((result) {
         if (mounted) {
           setState(() {
-            _isLoadingWeeklyWorkHours = false;
+            _isLoadingTodayPunches = false;
 
-            if (result['success'] == true && result.containsKey('work_hours')) {
-              // Format work hours to display
-              var workHoursValue = result['work_hours'];
+            if (result['success'] == true) {
+              _inPunch = result['in_punch']?.toString() ?? '';
+              _outPunch = result['out_punch']?.toString() ?? '';
+              _todayPunchesError = '';
               if (kDebugMode) {
-                print(
-                    "Processing weekly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
-              }
-
-              // Check if it's in HH:MM format
-              if (workHoursValue is String && workHoursValue.contains(':')) {
-                // It's in time format (HH:MM)
-                List<String> parts = workHoursValue.split(':');
-                if (parts.length == 2) {
-                  try {
-                    // Just validate the format without using the parsed values
-                    int.parse(parts[0]);
-                    int.parse(parts[1]);
-                    // Use the original value from API without any calculations
-                    _weeklyWorkHours = workHoursValue;
-                    if (kDebugMode) {
-                      print(
-                          "Using original time format from API: $_weeklyWorkHours");
-                    }
-                  } catch (e) {
-                    if (kDebugMode) {
-                      print("Error parsing time format: $e");
-                    }
-                    _weeklyWorkHours =
-                        workHoursValue; // Just use the original string
-                  }
-                } else {
-                  _weeklyWorkHours =
-                      workHoursValue; // Just use the original string
-                }
-              } else {
-                // Just use the original value without any formatting
-                _weeklyWorkHours = workHoursValue.toString();
-              }
-
-              if (kDebugMode) {
-                print("Updated weekly work hours: $_weeklyWorkHours");
+                print('Updated today punches: IN=$_inPunch OUT=$_outPunch');
               }
             } else {
-              _weeklyWorkHoursError =
-                  result['message'] ?? "Failed to load weekly work hours";
+              _todayPunchesError =
+                  result['message'] ?? 'Failed to load today punches';
               if (kDebugMode) {
-                print("Weekly work hours error: $_weeklyWorkHoursError");
+                print('Today punches error: $_todayPunchesError');
               }
             }
           });
         }
       });
 
-      // Start periodic updates (every 5 minutes)
+      // Start periodic updates for monthly and today punches (every 5 minutes)
       _monthlyWorkHoursApi.startPeriodicUpdates(empKey,
           interval: const Duration(minutes: 5));
-
-      _weeklyWorkHoursApi.startPeriodicUpdates(empKey,
+      _todayPunchesApi.startPeriodicUpdates(empKey,
           interval: const Duration(minutes: 5));
+      // Also fetch once and print raw response to debug console
+      try {
+        _todayPunchesApi.fetchAndLog(empKey);
+      } catch (e) {
+        if (kDebugMode) print('Error calling fetchAndLog: $e');
+      }
 
       // Subscribe to status pie chart data updates
       setState(() {
@@ -343,7 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     } else {
       setState(() {
         _monthlyWorkHoursError = "Employee key not found";
-        _weeklyWorkHoursError = "Employee key not found";
+        _todayPunchesError = "Employee key not found";
         _statusPieChartError = "Employee key not found";
       });
 
@@ -589,6 +619,23 @@ class _DashboardScreenState extends State<DashboardScreen>
     return null;
   }
 
+  // Format time string to HH:MM (strip seconds). If invalid, return original or '-'.
+  String _formatToHHMM(String? timeStr) {
+    if (timeStr == null || timeStr.trim().isEmpty) return '-';
+    try {
+      // Accept formats like HH:MM:SS or HH:MM
+      final parts = timeStr.trim().split(':');
+      if (parts.length >= 2) {
+        final hh = parts[0].padLeft(2, '0');
+        final mm = parts[1].padLeft(2, '0');
+        return '$hh:$mm';
+      }
+      return timeStr;
+    } catch (_) {
+      return timeStr;
+    }
+  }
+
   // Helper method to recursively search for emp_key in a nested map
   String? _findEmpKeyInMap(Map<dynamic, dynamic> map) {
     // Direct check for emp_key
@@ -616,143 +663,100 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     // Cancel work hours subscriptions
     _monthlyWorkHoursSubscription?.cancel();
-    _weeklyWorkHoursSubscription?.cancel();
+    _todayPunchesSubscription?.cancel();
     _statusPieChartSubscription?.cancel();
 
     // Stop periodic updates
     _monthlyWorkHoursApi.stopPeriodicUpdates();
-    _weeklyWorkHoursApi.stopPeriodicUpdates();
+    _todayPunchesApi.stopPeriodicUpdates();
     _statusPieChartApi.dispose();
 
     _mainScrollController.dispose();
     _tabController.dispose();
+    _longPressTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final double _scaleFactor =
+        (MediaQuery.of(context).size.width / 360).clamp(0.75, 1.0) as double;
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: CustomScrollView(
         controller: _mainScrollController,
-        physics: const ClampingScrollPhysics(),
+        physics: (_isReorderMode || _isHolding)
+            ? const NeverScrollableScrollPhysics()
+            : const ClampingScrollPhysics(),
         slivers: [
-          // Modern App Bar with profile
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            elevation: 0,
-            backgroundColor: Colors.white,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-              title: Padding(
-                padding: const EdgeInsets.only(right: 60),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'EasyTime',
+          SliverToBoxAdapter(
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 40, 16, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Welcome back, ${widget.userName ?? 'User'}',
                       style: TextStyle(
-                        color: Theme.of(context).primaryColor,
+                        fontSize: 20 * _scaleFactor,
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        color: const Color(0xFF333333),
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
+                      maxLines: 2,
                     ),
-                    Text(
-                      ' Online',
-                      style: TextStyle(
-                        color: Theme.of(context).primaryColor.withAlpha(179),
-                        fontWeight: FontWeight.w400,
-                        fontSize: 18,
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(13),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              background: Container(
-                color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 40, 16, 0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Theme.of(context).primaryColor,
                       child: Text(
-                        'Welcome back, ${widget.userName ?? 'User'}',
+                        widget.userName?.isNotEmpty == true
+                            ? widget.userName![0].toUpperCase()
+                            : 'U',
                         style: const TextStyle(
-                          fontSize: 20,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF333333),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
-                        maxLines: 2,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withAlpha(13),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Theme.of(context).primaryColor,
-                        child: Text(
-                          widget.userName?.isNotEmpty == true
-                              ? widget.userName![0].toUpperCase()
-                              : 'U',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                          fontSize: 16,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // Stats Cards
+          // Stats Cards (reorderable)
           SliverToBoxAdapter(
             child: Container(
               height: 100,
               margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Row(
                 children: [
-                  _buildStatCard(
-                    title: 'Monthly',
-                    value:
-                        _isLoadingMonthlyWorkHours ? "..." : _monthlyWorkHours,
-                    subtitle: _monthlyWorkHoursError.isNotEmpty
-                        ? _monthlyWorkHoursError
-                        : 'This month',
-                    color: Colors.blue,
-                    icon: Icons.calendar_month,
-                    flex: 1,
-                    isWorkHours: true,
-                  ),
-                  const SizedBox(width: 12),
-                  _buildStatCard(
-                    title: 'Weekly',
-                    value: _isLoadingWeeklyWorkHours ? "..." : _weeklyWorkHours,
-                    subtitle: _weeklyWorkHoursError.isNotEmpty
-                        ? _weeklyWorkHoursError
-                        : 'This week',
-                    color: Colors.green,
-                    icon: Icons.access_time,
-                    flex: 1,
-                    isWorkHours: true,
-                  ),
+                  for (int i = 0; i < _statOrder.length; i++)
+                    Expanded(
+                      flex: 1,
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                            right: i == _statOrder.length - 1 ? 0 : 12),
+                        child: _buildReorderableStatItem(_statOrder[i]),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -777,12 +781,12 @@ class _DashboardScreenState extends State<DashboardScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Quick Actions',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 16 * _scaleFactor,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF333333),
+                      color: const Color(0xFF333333),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -793,21 +797,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                         icon: Icons.login,
                         label: 'Check In',
                         color: Colors.green,
+                        scale: _scaleFactor,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.logout,
                         label: 'Check Out',
                         color: Colors.red,
+                        scale: _scaleFactor,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.event_note,
                         label: 'Tasks',
                         color: Colors.blue,
+                        scale: _scaleFactor,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.bar_chart,
                         label: 'Reports',
                         color: Colors.purple,
+                        scale: _scaleFactor,
                       ),
                     ],
                   ),
@@ -832,9 +840,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 indicatorColor: Theme.of(context).primaryColor,
                 indicatorSize: TabBarIndicatorSize.label,
                 tabs: const [
-                  Tab(text: 'Projects'),
-                  Tab(text: 'Team'),
-                  Tab(text: 'Activity'),
+                  Tab(text: 'Applications'),
+                  Tab(text: 'Views'),
                 ],
               ),
             ),
@@ -845,74 +852,78 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                // Projects Tab
+                // Projects Tab (Applications)
                 _buildProjectsTab(),
 
-                // Team Tab
+                // Team Tab (Views)
                 _buildTeamTab(),
-
-                // Activity Tab
-                _buildActivityTab(),
               ],
             ),
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          if (index == 1) {
-            // Navigate to Attendance History screen
-            String? empKey = _findEmployeeKey();
-            if (empKey != null) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AttendanceHistoryScreen(
-                    empKey: empKey,
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          labelTextStyle: MaterialStatePropertyAll(
+            TextStyle(fontSize: 12 * _scaleFactor),
+          ),
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            if (index == 1) {
+              // Navigate to Attendance History screen
+              String? empKey = _findEmployeeKey();
+              if (empKey != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AttendanceHistoryScreen(
+                      empKey: empKey,
+                    ),
                   ),
-                ),
-              );
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Employee key not found. Cannot load attendance history.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                      'Employee key not found. Cannot load attendance history.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              setState(() {
+                _currentIndex = index;
+              });
             }
-          } else {
-            setState(() {
-              _currentIndex = index;
-            });
-          }
-        },
-        backgroundColor: Colors.white,
-        elevation: 0,
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.access_time_outlined),
-            selectedIcon: Icon(Icons.access_time),
-            label: 'Attendance',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.task_outlined),
-            selectedIcon: Icon(Icons.task),
-            label: 'Tasks',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
+          },
+          backgroundColor: Colors.white,
+          elevation: 0,
+          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.access_time_outlined),
+              selectedIcon: Icon(Icons.access_time),
+              label: 'Attendance',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.task_outlined),
+              selectedIcon: Icon(Icons.task),
+              label: 'Tasks',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -938,8 +949,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           // Handle tap based on card type
           if (title == 'Monthly') {
             _navigateToMonthlyWorkHoursDetail();
-          } else if (title == 'Weekly') {
-            // Future implementation for weekly details
+          } else if (title == 'Today') {
+            // Future implementation for today punches details
           }
         },
         child: Container(
@@ -972,31 +983,89 @@ class _DashboardScreenState extends State<DashboardScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
-                        fontSize: 12,
+                        fontSize: 12 *
+                            (MediaQuery.of(context).size.width / 360)
+                                .clamp(0.75, 1.0) as double,
                         fontWeight: FontWeight.w500,
                       ),
-                    ),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
                       overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
+                    const SizedBox(height: 6),
+                    // For Today card show IN/OUT on two lines with larger text
+                    if (title == 'Today')
+                      Flexible(
+                        child: FittedBox(
+                          alignment: Alignment.centerLeft,
+                          fit: BoxFit.scaleDown,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'IN: ${_inPunch.isNotEmpty ? _formatToHHMM(_inPunch) : '-'}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32 *
+                                      (MediaQuery.of(context).size.width / 360)
+                                          .clamp(0.75, 1.0) as double,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'OUT: ${_outPunch.isNotEmpty ? _formatToHHMM(_outPunch) : '-'}',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 30 *
+                                      (MediaQuery.of(context).size.width / 360)
+                                          .clamp(0.75, 1.0) as double,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: FittedBox(
+                          alignment: Alignment.centerLeft,
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            value,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22 *
+                                  (MediaQuery.of(context).size.width / 360)
+                                      .clamp(0.75, 1.0) as double,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: TextStyle(
                         color: Colors.white.withAlpha(204),
-                        fontSize: 10,
+                        fontSize: 10 *
+                            (MediaQuery.of(context).size.width / 360)
+                                .clamp(0.75, 1.0) as double,
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
@@ -1007,6 +1076,111 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Build a reorderable stat item wrapped with drag target and draggable
+  Widget _buildReorderableStatItem(String id) {
+    Widget card;
+    if (id == 'Monthly') {
+      card = _buildStatCard(
+        title: 'Monthly',
+        value: _isLoadingMonthlyWorkHours ? "..." : _monthlyWorkHours,
+        subtitle: _monthlyWorkHoursError.isNotEmpty
+            ? _monthlyWorkHoursError
+            : 'This month',
+        color: Colors.blue,
+        icon: Icons.calendar_month,
+        flex: 1,
+        isWorkHours: true,
+      );
+    } else {
+      card = _buildStatCard(
+        title: 'Today',
+        value: _isLoadingTodayPunches
+            ? "..."
+            : ((_inPunch.isNotEmpty || _outPunch.isNotEmpty)
+                ? 'IN: $_inPunch  OUT: $_outPunch'
+                : 'No punches'),
+        subtitle: _todayPunchesError.isNotEmpty ? _todayPunchesError : '',
+        color: Colors.green,
+        icon: Icons.access_time,
+        flex: 1,
+        isWorkHours: true,
+      );
+    }
+
+    return GestureDetector(
+      onTapDown: (_) => _startLongHold(id),
+      onTapUp: (_) => _cancelLongHold(),
+      onTapCancel: () => _cancelLongHold(),
+      child: DragTarget<String>(
+        onWillAccept: (data) => data != null && data != id,
+        onAccept: (sourceId) {
+          // swap positions
+          final from = _statOrder.indexOf(sourceId);
+          final to = _statOrder.indexOf(id);
+          if (from >= 0 && to >= 0) {
+            setState(() {
+              final item = _statOrder.removeAt(from);
+              _statOrder.insert(to, item);
+              _isReorderMode = false;
+              _activeDragItem = null;
+            });
+            _saveStatOrder();
+          }
+        },
+        builder: (context, candidateData, rejectedData) {
+          final highlight = candidateData.isNotEmpty;
+          Widget child = Stack(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                decoration: BoxDecoration(
+                  border: highlight
+                      ? Border.all(
+                          color: Theme.of(context).primaryColor, width: 2)
+                      : null,
+                ),
+                child: card,
+              ),
+              if (_isReorderMode && _activeDragItem == id)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child:
+                      const Icon(Icons.drag_indicator, color: Colors.white70),
+                ),
+            ],
+          );
+
+          // If this item is active for dragging, wrap it in Draggable
+          if (_isReorderMode && _activeDragItem == id) {
+            return LongPressDraggable<String>(
+              data: id,
+              feedback: Material(
+                color: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: Opacity(opacity: 0.95, child: card),
+                ),
+              ),
+              childWhenDragging: Opacity(opacity: 0.4, child: card),
+              onDragEnd: (details) {
+                // reset reorder mode after drag
+                setState(() {
+                  _isReorderMode = false;
+                  _activeDragItem = null;
+                });
+                _cancelLongHold();
+              },
+              child: child,
+            );
+          }
+
+          return child;
+        },
       ),
     );
   }
@@ -1038,23 +1212,34 @@ class _DashboardScreenState extends State<DashboardScreen>
     required IconData icon,
     required String label,
     required Color color,
+    double scale = 1.0,
   }) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withAlpha(26),
-            borderRadius: BorderRadius.circular(10),
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withAlpha(26),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 22),
           ),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF555555)),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                  fontSize: 12 * scale, color: const Color(0xFF555555)),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1284,63 +1469,60 @@ class _DashboardScreenState extends State<DashboardScreen>
           total > 0 ? (value as num).toDouble() / total * 100 : 0;
       final formattedPercentage = percentage.toStringAsFixed(1);
 
-      // Create pie section with large percentage text
+      // Create pie section; do NOT render percentage text inside the slice.
+      // Percentages will be shown in the legend to avoid overlap on small screens.
       sections.add(
         PieChartSectionData(
           color: color,
           value: (value as num).toDouble(),
-          title: '${percentage.round()}%',
-          radius: 70, // Matches the new radius in the chart
+          title: '', // hide title inside slice to prevent overlap
+          radius: 70,
           titleStyle: const TextStyle(
-            fontSize: 16, // Matches the new font size in the chart
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
-          badgeWidget: Icon(
-            _getIconForStatus(key),
-            size: 14, // Even smaller icon
-            color: Colors.white,
-          ),
-          badgePositionPercentageOffset: 0.8, // Move badge closer to center
+          badgeWidget: null,
         ),
       );
 
-      // Create legend item with dot, label and value
+      // Create legend item with dot and stacked label/value to avoid horizontal overflow
       legendItems.add(
         Container(
-          margin: const EdgeInsets.only(bottom: 4), // Further reduced margin
+          margin: const EdgeInsets.only(bottom: 8),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 10,
                 height: 10,
+                margin: const EdgeInsets.only(top: 4),
                 decoration: BoxDecoration(
                   color: color,
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
-                flex: 2,
-                child: Text(
-                  getStatusLabel(key),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Expanded(
-                flex: 1,
-                child: Text(
-                  '$value ($formattedPercentage%)',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.right,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      getStatusLabel(key),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$value (${formattedPercentage}%)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1381,19 +1563,26 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
-                  children: [
-                    Icon(Icons.pie_chart, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Attendance Summary',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.pie_chart,
+                          color: Colors.white, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Attendance Summary',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 IconButton(
                   icon:
@@ -1506,205 +1695,107 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildLegendColumn(List<Widget> items) {
     // This method helps avoid the 'prefer_const_constructors' lint warning
     // We can't use const here because items is a runtime value
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: items,
+    // Wrap the column in a scrollable container so it won't overflow
+    // when the available vertical space is constrained.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: items,
+      ),
     );
   }
 
   Widget _buildProjectsTab() {
-    return ListView.builder(
+    // Shortcut action cards in a 2x2 grid for the Applications tab
+    final actions = [
+      {
+        'title': 'Leave Application',
+        'icon': Icons.beach_access,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'Manual Punch',
+        'icon': Icons.edit,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'Manual Attendance',
+        'icon': Icons.history_toggle_off,
+        'color': Colors.green,
+      },
+      {
+        'title': 'Requests',
+        'icon': Icons.list_alt,
+        'color': Colors.purple,
+      },
+    ];
+
+    return GridView.builder(
       padding: const EdgeInsets.all(16),
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: 5,
       shrinkWrap: true,
+      itemCount: actions.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.1,
+      ),
       itemBuilder: (context, index) {
-        final projects = [
-          {
-            'name': 'Website Redesign',
-            'progress': 0.7,
-            'color': Colors.blue,
-            'deadline': 'Oct 15',
-            'members': 4,
+        final item = actions[index];
+        return InkWell(
+          onTap: () {
+            final title = item['title'] as String;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Open: $title')),
+            );
           },
-          {
-            'name': 'Mobile App Development',
-            'progress': 0.4,
-            'color': Colors.orange,
-            'deadline': 'Nov 20',
-            'members': 6,
-          },
-          {
-            'name': 'Database Migration',
-            'progress': 0.9,
-            'color': Colors.green,
-            'deadline': 'Oct 5',
-            'members': 3,
-          },
-          {
-            'name': 'API Integration',
-            'progress': 0.3,
-            'color': Colors.purple,
-            'deadline': 'Dec 10',
-            'members': 5,
-          },
-          {
-            'name': 'UI Testing',
-            'progress': 0.6,
-            'color': Colors.teal,
-            'deadline': 'Oct 30',
-            'members': 2,
-          },
-        ];
-
-        if (index >= projects.length) return null;
-
-        final project = projects[index];
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(8),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: (project['color'] as Color).withAlpha(26),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.folder,
-                      color: project['color'] as Color,
-                      size: 18,
-                    ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: (item['color'] as Color).withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      project['name'] as String,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
+                  child: Icon(
+                    item['icon'] as IconData,
+                    color: item['color'] as Color,
+                    size: 28,
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Due ${project['deadline']}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Progress',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Stack(
-                          children: [
-                            Container(
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                            FractionallySizedBox(
-                              widthFactor: project['progress'] as double,
-                              child: Container(
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: project['color'] as Color,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    '${((project['progress'] as double) * 100).toInt()}%',
-                    style: TextStyle(
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: Text(
+                    item['title'] as String,
+                    style: const TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: project['color'] as Color,
+                      fontWeight: FontWeight.w600,
                     ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.people_outline,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${project['members']} members',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(60, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Details',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         );
       },

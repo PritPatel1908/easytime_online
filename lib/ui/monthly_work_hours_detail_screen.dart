@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:easytime_online/monthly_work_hours_detail_api.dart';
+import 'package:easytime_online/api/monthly_work_hours_detail_api.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shimmer/shimmer.dart';
-import 'main.dart';
+import 'package:easytime_online/main/main.dart';
 
 class MonthlyWorkHoursDetailScreen extends StatefulWidget {
   final String empKey;
@@ -436,11 +436,11 @@ class _MonthlyWorkHoursDetailScreenState
                 ),
               ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+            child: const Padding(
+              padding: EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
+                children: [
                   Text(
                     'Date',
                     style: TextStyle(
@@ -463,8 +463,8 @@ class _MonthlyWorkHoursDetailScreenState
           ),
         ),
         // Add space between header and list
-        SliverToBoxAdapter(
-          child: const SizedBox(height: 16),
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 16),
         ),
         SliverList(
           delegate: SliverChildBuilderDelegate(
@@ -675,8 +675,8 @@ class _MonthlyWorkHoursDetailScreenState
           ),
         ),
         // Add additional padding at the bottom to ensure the last item is fully visible
-        SliverToBoxAdapter(
-          child: const SizedBox(height: 16),
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 16),
         ),
       ],
     );

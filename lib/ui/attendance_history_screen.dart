@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:easytime_online/attendance_history_api.dart';
+import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'; // Added for kDebugMode
 
@@ -165,7 +165,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           children: [
             // Year selection
             DropdownButtonFormField<int>(
-              value: int.parse(_selectedYear),
+              initialValue: int.parse(_selectedYear),
               decoration: const InputDecoration(
                 labelText: 'Year',
               ),
@@ -184,7 +184,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             const SizedBox(height: 16),
             // Month selection
             DropdownButtonFormField<int>(
-              value: int.parse(_selectedMonth),
+              initialValue: int.parse(_selectedMonth),
               decoration: const InputDecoration(
                 labelText: 'Month',
               ),
@@ -614,33 +614,48 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
         // Calendar days
         if (days.isNotEmpty)
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 0.6, // Reduced from 0.65 to give more height
-              mainAxisSpacing: 8,
-              crossAxisSpacing: 8,
-            ),
-            itemCount: _getDaysInMonth(_selectedDate.year, _selectedDate.month),
-            itemBuilder: (context, index) {
-              final day = index + 1;
-              // Find the day data safely without using firstWhere
-              Map<String, dynamic>? dayData;
-              for (var d in days) {
-                if (d is Map<String, dynamic> && d['date'] != null) {
-                  // Extract day from date string (assuming format like "01-07-2025")
-                  String dateStr = d['date'].toString();
-                  List<String> dateParts = dateStr.split('-');
-                  if (dateParts.length >= 3 &&
-                      int.tryParse(dateParts[0]) == day) {
-                    dayData = d;
-                    break;
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const int crossAxisCount = 7;
+              const double spacing = 8.0;
+              const double totalSpacing = (crossAxisCount - 1) * spacing;
+              final double itemWidth =
+                  (constraints.maxWidth - totalSpacing) / crossAxisCount;
+              // Make items roughly square; adjust multiplier if you want taller cells
+              final double itemHeight = itemWidth * 1.0;
+              final double childAspectRatio =
+                  itemWidth > 0 ? (itemWidth / itemHeight) : 0.6;
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  childAspectRatio: childAspectRatio,
+                  mainAxisSpacing: spacing,
+                  crossAxisSpacing: spacing,
+                ),
+                itemCount:
+                    _getDaysInMonth(_selectedDate.year, _selectedDate.month),
+                itemBuilder: (context, index) {
+                  final day = index + 1;
+                  // Find the day data safely without using firstWhere
+                  Map<String, dynamic>? dayData;
+                  for (var d in days) {
+                    if (d is Map<String, dynamic> && d['date'] != null) {
+                      // Extract day from date string (assuming format like "01-07-2025")
+                      String dateStr = d['date'].toString();
+                      List<String> dateParts = dateStr.split('-');
+                      if (dateParts.length >= 3 &&
+                          int.tryParse(dateParts[0]) == day) {
+                        dayData = d;
+                        break;
+                      }
+                    }
                   }
-                }
-              }
-              return _buildDayCell(day, dayData);
+                  return _buildDayCell(day, dayData);
+                },
+              );
             },
           )
         else
@@ -732,47 +747,60 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             width: isToday ? 2 : 1,
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min, // Use min size to prevent overflow
-          children: [
-            // Day number
-            Text(
-              day.toString(),
-              style: TextStyle(
-                fontSize: 11, // Reduced font size
-                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                color: isPast && !hasData && !isWeekend
-                    ? Colors.red
-                    : isWeekend && !hasData
-                        ? Colors.grey[600]
-                        : Colors.black87,
+        child: LayoutBuilder(builder: (context, constraints) {
+          final double h = constraints.maxHeight;
+          // Compute sizes relative to available height, with sensible minimums
+          final double dayFont = (h * 0.32).clamp(8.0, 14.0);
+          final double iconSize = (h * 0.36).clamp(8.0, 16.0);
+          final double statusFont = (h * 0.22).clamp(6.0, 12.0);
+          final double gap = (h * 0.04).clamp(1.0, 4.0);
+
+          // Wrap content in a FittedBox to scale down when the cell is too small
+          return FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    day.toString(),
+                    style: TextStyle(
+                      fontSize: dayFont,
+                      fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                      color: isPast && !hasData && !isWeekend
+                          ? Colors.red
+                          : isWeekend && !hasData
+                              ? Colors.grey[600]
+                              : Colors.black87,
+                    ),
+                  ),
+                  if (hasData) ...[
+                    SizedBox(height: gap),
+                    Icon(
+                      _getStatusIcon(status),
+                      color: _getStatusColor(status),
+                      size: iconSize,
+                    ),
+                    SizedBox(height: gap),
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: statusFont,
+                        fontWeight: FontWeight.bold,
+                        color: _getStatusColor(status),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (hasData) ...[
-              const SizedBox(height: 2),
-              // Status icon - increased size
-              Icon(
-                _getStatusIcon(status),
-                color: _getStatusColor(status),
-                size: 14, // Increased size from 10 to 14
-              ),
-              const SizedBox(height: 2),
-              // Status text - increased font size
-              Text(
-                status,
-                style: TextStyle(
-                  fontSize: 10, // Increased font size from 7 to 10
-                  fontWeight: FontWeight.bold,
-                  color: _getStatusColor(status),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              // Removed time display completely
-            ],
-          ],
-        ),
+          );
+        }),
       ),
     );
   }
@@ -936,19 +964,26 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
               ),
               const Divider(),
 
-              if (status == 'PP') ...[
-                _buildDetailItem(
-                  icon: Icons.login,
-                  title: 'Check In',
-                  value: checkIn,
-                ),
-                const Divider(),
-                _buildDetailItem(
-                  icon: Icons.logout,
-                  title: 'Check Out',
-                  value: checkOut,
-                ),
-                const Divider(),
+              // Show check-in/check-out when punches exist.
+              // If there's a single punch (only `in_time`), still show it as Check In.
+              if ((checkIn != '-' && checkIn.isNotEmpty) ||
+                  (checkOut != '-' && checkOut.isNotEmpty)) ...[
+                if (checkIn != '-' && checkIn.isNotEmpty) ...[
+                  _buildDetailItem(
+                    icon: Icons.login,
+                    title: 'Check In',
+                    value: checkIn,
+                  ),
+                  const Divider(),
+                ],
+                if (checkOut != '-' && checkOut.isNotEmpty) ...[
+                  _buildDetailItem(
+                    icon: Icons.logout,
+                    title: 'Check Out',
+                    value: checkOut,
+                  ),
+                  const Divider(),
+                ],
               ],
 
               _buildDetailItem(

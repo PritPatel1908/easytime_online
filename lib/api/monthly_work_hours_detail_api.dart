@@ -54,7 +54,7 @@ class MonthlyWorkHoursDetailApi {
   static Future<String> getBaseApiUrl() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? baseUrl = prefs.getString('base_api_url');
-    return baseUrl ?? 'http://att.easytimeonline.in:121';
+    return baseUrl ?? 'http://att.easytimeonline.in:9095';
   }
 
   // Stream controller for work hours data
