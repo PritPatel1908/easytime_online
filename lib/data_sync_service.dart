@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:easytime_online/data_storage_service.dart';
-import 'package:easytime_online/monthly_work_hours_api.dart';
-import 'package:easytime_online/weekly_work_hours_api.dart';
-import 'package:easytime_online/status_pie_chart_api.dart';
-import 'package:easytime_online/attendance_history_api.dart';
+import 'package:easytime_online/api/monthly_work_hours_api.dart';
+import 'package:easytime_online/api/weekly_work_hours_api.dart';
+import 'package:easytime_online/api/status_pie_chart_api.dart';
+import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:flutter/foundation.dart';
 
 class DataSyncService {
@@ -57,11 +57,12 @@ class DataSyncService {
     try {
       // First try to get from local storage
       String? cachedHours = await DataStorageService.getMonthlyWorkHours();
-      
+
       // Set up subscription to API
       _monthlyWorkHoursSubscription?.cancel();
       _monthlyWorkHoursApi.fetchMonthlyWorkHours(empKey);
-      _monthlyWorkHoursSubscription = _monthlyWorkHoursApi.workHoursStream.listen((result) async {
+      _monthlyWorkHoursSubscription =
+          _monthlyWorkHoursApi.workHoursStream.listen((result) async {
         // Extract work hours from result map
         if (result['success'] == true && result.containsKey('work_hours')) {
           String hours = result['work_hours'].toString();
@@ -76,7 +77,7 @@ class DataSyncService {
           print('Error fetching monthly work hours: $error');
         }
       });
-      
+
       return cachedHours ?? "00:00";
     } catch (e) {
       if (kDebugMode) {
@@ -91,11 +92,12 @@ class DataSyncService {
     try {
       // First try to get from local storage
       String? cachedHours = await DataStorageService.getWeeklyWorkHours();
-      
+
       // Set up subscription to API
       _weeklyWorkHoursSubscription?.cancel();
       _weeklyWorkHoursApi.fetchWeeklyWorkHours(empKey);
-      _weeklyWorkHoursSubscription = _weeklyWorkHoursApi.workHoursStream.listen((result) async {
+      _weeklyWorkHoursSubscription =
+          _weeklyWorkHoursApi.workHoursStream.listen((result) async {
         // Extract work hours from result map
         if (result['success'] == true && result.containsKey('work_hours')) {
           String hours = result['work_hours'].toString();
@@ -110,7 +112,7 @@ class DataSyncService {
           print('Error fetching weekly work hours: $error');
         }
       });
-      
+
       return cachedHours ?? "00:00";
     } catch (e) {
       if (kDebugMode) {
@@ -124,12 +126,14 @@ class DataSyncService {
   Future<Map<String, dynamic>?> _syncStatusPieChartData(String empKey) async {
     try {
       // First try to get from local storage
-      Map<String, dynamic>? cachedData = await DataStorageService.getStatusPieChartData();
-      
+      Map<String, dynamic>? cachedData =
+          await DataStorageService.getStatusPieChartData();
+
       // Set up subscription to API
       _statusPieChartSubscription?.cancel();
       _statusPieChartApi.fetchStatusPieChart(empKey);
-      _statusPieChartSubscription = _statusPieChartApi.statusDataStream.listen((data) async {
+      _statusPieChartSubscription =
+          _statusPieChartApi.statusDataStream.listen((data) async {
         // Save to local storage
         await DataStorageService.saveStatusPieChartData(data);
         if (kDebugMode) {
@@ -140,7 +144,7 @@ class DataSyncService {
           print('Error fetching status pie chart data: $error');
         }
       });
-      
+
       return cachedData;
     } catch (e) {
       if (kDebugMode) {
@@ -154,12 +158,14 @@ class DataSyncService {
   Future<List<dynamic>?> _syncAttendanceHistory(String empKey) async {
     try {
       // First try to get from local storage
-      List<dynamic>? cachedData = await DataStorageService.getAttendanceHistory();
-      
+      List<dynamic>? cachedData =
+          await DataStorageService.getAttendanceHistory();
+
       // Set up subscription to API
       _attendanceHistorySubscription?.cancel();
       _attendanceHistoryApi.fetchAttendanceHistory(empKey);
-      _attendanceHistorySubscription = _attendanceHistoryApi.attendanceDataStream.listen((data) async {
+      _attendanceHistorySubscription =
+          _attendanceHistoryApi.attendanceDataStream.listen((data) async {
         // Extract attendance list from the response map and save to local storage
         if (data['success'] == true && data.containsKey('attendance')) {
           List<dynamic> attendanceList = data['attendance'];
@@ -173,7 +179,7 @@ class DataSyncService {
           print('Error fetching attendance history: $error');
         }
       });
-      
+
       return cachedData;
     } catch (e) {
       if (kDebugMode) {

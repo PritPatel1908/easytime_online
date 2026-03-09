@@ -44,7 +44,7 @@ class TodayPunchesApi {
   static Future<String> getBaseApiUrl() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? baseUrl = prefs.getString('base_api_url');
-    return baseUrl ?? 'http://att.easytimeonline.in:9095';
+    return baseUrl ?? 'http://192.168.1.52:9095';
   }
 
   Future<Map<String, dynamic>> fetchTodayPunches(String empKey) async {

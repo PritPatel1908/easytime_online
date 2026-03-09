@@ -1,13 +1,7 @@
-<<<<<<< HEAD
-import 'main/main.dart' as app;
-
-void main() => app.main();
-=======
 import 'dart:convert';
-import 'package:easytime_online/client_codes_fetch_api.dart';
-import 'package:easytime_online/dashboard_screen.dart';
-import 'package:easytime_online/splash_screen.dart';
-import 'package:easytime_online/main_navigation.dart';
+import 'package:easytime_online/api/client_codes_fetch_api.dart';
+import 'package:easytime_online/ui/dashboard_screen.dart';
+import 'package:easytime_online/ui/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -216,14 +210,11 @@ class MyApp extends StatelessWidget {
             vertical: 16,
           ),
         ),
-        // Custom page transitions for smooth navigation
+        // Performance optimizations
         pageTransitionsTheme: const PageTransitionsTheme(
           builders: {
-            TargetPlatform.android: ZoomPageTransitionsBuilder(),
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
             TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
           },
         ),
         // Scrolling physics for better performance
@@ -237,6 +228,14 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         // Ensure system UI settings are maintained throughout the app
         SystemUIUtil.hideSystemNavigationBar();
+
+        // Compute a global responsive text scale factor based on screen width.
+        // This reduces font sizes proportionally on narrow screens to avoid
+        // aggressive truncation (ellipsis) across the app.
+        final mq = MediaQuery.of(context);
+        final double width = mq.size.width;
+        final double screenScale = (width / 360).clamp(0.75, 1.0);
+        final double effectiveTextScale = mq.textScaleFactor * screenScale;
 
         // Global scrolling behavior with system UI control
         return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -252,7 +251,10 @@ class MyApp extends StatelessWidget {
               physics: const ClampingScrollPhysics(),
               overscroll: false,
             ),
-            child: child!,
+            child: MediaQuery(
+              data: mq.copyWith(textScaleFactor: effectiveTextScale),
+              child: child!,
+            ),
           ),
         );
       },
@@ -406,12 +408,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
     // Show loading indicator
     showDialog(
-      context: currentContext,
+      context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -425,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
 
-      Navigator.pop(currentContext); // Close loading dialog
+      if (mounted) Navigator.pop(context); // Close loading dialog
 
       if (result['success']) {
         // Save both the client code and API URL
@@ -461,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(currentContext); // Close loading dialog
+      if (mounted) Navigator.pop(context); // Close loading dialog
       _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
     }
   }
@@ -490,12 +489,9 @@ class _HomeScreenState extends State<HomeScreen> {
     String username = _usernameController.text.trim();
     String password = _passwordController.text;
 
-    // Store context before async gap
-    final BuildContext currentContext = context;
-
     // Show loading indicator
     showDialog(
-      context: currentContext,
+      context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return const Center(
@@ -519,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
 
-      Navigator.pop(currentContext); // Close loading
+      if (mounted) Navigator.pop(context); // Close loading
 
       // Process result
       final bool loginSuccess = result['success'] == true;
@@ -586,13 +582,13 @@ class _HomeScreenState extends State<HomeScreen> {
         // Ensure userData has emp_key explicitly set
         userData['emp_key'] = empKey;
 
-        // Navigate to dashboard using helper method
+        // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(
-            currentContext, userData['emp_name'] ?? username, userData);
+            userData['emp_name'] ?? username, userData, empKey ?? '');
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(currentContext); // Close loading dialog
+      if (mounted) Navigator.pop(context); // Close loading dialog
 
       // Show error toast
       _safelyShowToast('Login error: ${e.toString()}', isSuccess: false);
@@ -624,33 +620,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Helper method to navigate to dashboard after delay
-  void _navigateToDashboardAfterDelay(BuildContext contextToUse,
-      String displayName, Map<String, dynamic> userData) {
-    // Store a reference to the context
-    final BuildContext localContext = contextToUse;
-
+  void _navigateToDashboardAfterDelay(
+      String displayName, Map<String, dynamic> userData, String empKey) {
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
       Navigator.pushReplacement(
-        localContext,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => MainNavigation(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DashboardScreen(
             userName: displayName,
             userData: userData,
-            empKey: userData['emp_key'] ?? '',
+            empKey: empKey,
           ),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(0.0, 0.3);
-            const end = Offset.zero;
-            const curve = Curves.easeOut;
-            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-            var offsetAnimation = animation.drive(tween);
-            return SlideTransition(
-              position: offsetAnimation,
-              child: FadeTransition(opacity: animation, child: child),
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 400),
         ),
       );
     });
@@ -1271,7 +1252,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               rememberMe = value;
                             });
                           },
-                          activeColor: const Color(0xFF2C3E50),
+                          activeThumbColor: const Color(0xFF2C3E50),
                         ),
                       ],
                     ),
@@ -1642,4 +1623,3 @@ class _ApiTestScreenState extends State<ApiTestScreen> {
     super.dispose();
   }
 }
->>>>>>> b2a1f80a1365163589978a7f78834109c12a238c

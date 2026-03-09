@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:easytime_online/animated_bottom_navigation.dart';
 import 'package:easytime_online/persistent_navigation_layout.dart';
-import 'package:easytime_online/dashboard_screen.dart';
-import 'package:easytime_online/attendance_history_screen.dart';
+import 'package:easytime_online/ui/dashboard_screen.dart';
+import 'package:easytime_online/ui/attendance_history_screen.dart';
 
 class MainNavigation extends StatelessWidget {
   final Map<String, dynamic>? userData;

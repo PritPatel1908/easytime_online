@@ -1,12 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-<<<<<<< HEAD:lib/ui/attendance_history_screen.dart
-import 'package:easytime_online/api/attendance_history_api.dart';
-=======
->>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/attendance_history_screen.dart
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'; // Added for kDebugMode
-import 'package:easytime_online/attendance_history_api.dart';
+import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:easytime_online/custom_page_transitions.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
@@ -302,24 +298,26 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Month selector
-          _buildMonthSelector(),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Month selector
+            _buildMonthSelector(),
 
-          // Attendance data
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _errorMessage.isNotEmpty
-                    ? _buildErrorView()
-                    : _attendanceData == null || _attendanceData!.isEmpty
-                        ? _buildEmptyView()
-                        : _showAsTable
-                            ? _buildAttendanceTable()
-                            : _buildAttendanceCalendar(),
-          ),
-        ],
+            // Attendance data
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage.isNotEmpty
+                      ? _buildErrorView()
+                      : _attendanceData == null || _attendanceData!.isEmpty
+                          ? _buildEmptyView()
+                          : _showAsTable
+                              ? _buildAttendanceTable()
+                              : _buildAttendanceCalendar(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -384,7 +382,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewPadding.bottom + 64,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -564,7 +567,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
     // Build calendar grid
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewPadding.bottom + 64,
+      ),
       children: [
         // Calendar header
         _buildCalendarHeader(),

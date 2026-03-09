@@ -1,0 +1,76 @@
+<svg viewBox="0 0 40 40" width="200" height="200"
+     xmlns="http://www.w3.org/2000/svg">
+
+  <style>
+    .part {
+      opacity: 0;
+      transform-origin: center;
+      filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.25));
+    }
+
+    .p1 { animation: build 0.6s ease forwards 0.2s; }
+    .p2 { animation: build 0.6s ease forwards 0.35s; }
+    .p3 { animation: build 0.6s ease forwards 0.5s; }
+    .p4 { animation: build 0.6s ease forwards 0.65s; }
+    .p5 { animation: build 0.6s ease forwards 0.8s; }
+    .p6 { animation: build 0.6s ease forwards 0.95s; }
+
+    @keyframes build {
+      0% {
+        opacity: 0;
+        transform: scale(0.6) translateY(8px);
+      }
+      60% {
+        opacity: 1;
+        transform: scale(1.08) translateY(-2px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+  </style>
+
+  <g class="part p1">
+    <path d="M7.96639 4.13436C3.12098 7.79713 0 13.5416 0 20C0 24.1229 1.27185 27.9548 3.45224 31.1399C0.60574 18.8235 5.27563 8.00438 7.96639 4.13436Z"
+          fill="url(#paintBlue)" />
+  </g>
+
+  <g class="part p2">
+    <path d="M19.3274 0C17.0104 0.122871 14.796 0.623467 12.7472 1.44002C11.6488 3.19959 10.4003 5.5404 9.24994 8.22912C10.5209 7.5429 13.8391 6.11042 16.9443 5.87031C17.8213 3.5107 18.6632 1.47698 19.3274 0Z"
+          fill="url(#paintBlue)" />
+  </g>
+
+  <g class="part p3">
+    <path d="M8.98704 36.5893C11.9667 38.5683 15.5077 39.7974 19.3274 40C16.8454 39.7037 11.8813 36.8556 11.8813 27.8344C11.8813 21.8986 14.0304 14.1131 16.2075 7.90964C14.9308 7.90494 11.617 8.29185 8.57551 9.87715C5.34213 18.1516 3.38294 29.0243 8.98704 36.5893Z"
+          fill="url(#paintBlue)" />
+  </g>
+
+  <g class="part p4">
+    <path d="M30.3387 27.9232C30.3387 21.8175 34.5144 11.9049 36.6022 7.71179C38.102 9.59991 39.2642 11.758 40 14.099C39.4918 14.7019 38.0357 17.1901 36.2775 22.3196C34.0797 28.7314 35.5293 29.4641 37.2127 29.9679C32.3027 36.2881 30.3387 32.67 30.3387 27.9232Z"
+          fill="url(#paintBlue)" />
+  </g>
+
+  <g class="part p5">
+    <path d="M27.5953 38.7734C21.1883 40.9577 18.2275 37.1573 18.2275 27.9229C18.2275 20.6156 20.358 13.3439 22.5251 7.77133C25.6725 7.59013 28.9668 8.78837 30.2205 9.41014C28.7785 12.8389 27.0974 17.7883 25.6711 24.2825C22.4885 38.7734 31.3051 38.3321 36.9147 31.8844C34.5765 34.9861 31.3464 37.4035 27.5953 38.7734Z"
+          fill="url(#paintGreen)" />
+  </g>
+
+  <g class="part p6">
+    <path d="M32.9357 4.13412C30.8074 2.5253 28.3465 1.31809 25.6711 0.628418C25.0291 1.94114 24.2209 3.65539 23.3755 5.6687C24.7346 5.87661 28.1027 6.69381 30.7024 8.29936C31.6297 6.22933 32.424 4.84338 32.9357 4.13412Z"
+          fill="url(#paintGreen)" />
+  </g>
+
+  <defs>
+    <linearGradient id="paintBlue" x1="20" y1="0" x2="19" y2="40">
+      <stop stop-color="#00A8FF"/>
+      <stop offset="1" stop-color="#007CF0"/>
+    </linearGradient>
+
+    <linearGradient id="paintGreen" x1="27" y1="0" x2="26" y2="40">
+      <stop stop-color="#6DD400"/>
+      <stop offset="1" stop-color="#3FA800"/>
+    </linearGradient>
+  </defs>
+
+</svg>

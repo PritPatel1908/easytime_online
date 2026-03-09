@@ -582,9 +582,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // Ensure userData has emp_key explicitly set
         userData['emp_key'] = empKey;
 
-        // Navigate to dashboard using helper method
+        // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(
-            userData['emp_name'] ?? username, userData);
+            userData['emp_name'] ?? username, userData, empKey ?? '');
       }
     } catch (e) {
       if (!mounted) return;
@@ -621,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Helper method to navigate to dashboard after delay
   void _navigateToDashboardAfterDelay(
-      String displayName, Map<String, dynamic> userData) {
+      String displayName, Map<String, dynamic> userData, String empKey) {
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -630,6 +630,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context) => DashboardScreen(
             userName: displayName,
             userData: userData,
+            empKey: empKey,
           ),
         ),
       );

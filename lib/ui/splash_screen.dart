@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:easytime_online/main/main.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -95,7 +96,8 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const HomeScreen(title: 'EasyTime Online'),
+          pageBuilder: (_, __, ___) =>
+              const HomeScreen(title: 'EasyTime Online'),
           transitionDuration: const Duration(milliseconds: 800),
           transitionsBuilder: (_, animation, __, child) {
             return FadeTransition(
@@ -200,10 +202,10 @@ class _SplashScreenState extends State<SplashScreen>
                                       shape: BoxShape.circle,
                                     ),
                                   ),
-                                  const Icon(
-                                    Icons.access_time_filled,
-                                    size: 60,
-                                    color: Color(0xFF1E3C72),
+                                  SvgPicture.asset(
+                                    'assets/Images/IconAndLogo/indian-infotech-logo.svg',
+                                    width: 60,
+                                    height: 60,
                                   ),
                                   Positioned(
                                     right: 0,

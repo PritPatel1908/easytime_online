@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-<<<<<<< HEAD:lib/ui/dashboard_screen.dart
 import 'dart:math' as math;
 import 'package:easytime_online/api/monthly_work_hours_api.dart';
 import 'package:easytime_online/api/today_punches_api.dart';
 import 'package:easytime_online/ui/monthly_work_hours_detail_screen.dart';
+import 'package:easytime_online/ui/approver_screen.dart';
+import 'package:easytime_online/ui/team_screen.dart';
+import 'package:easytime_online/ui/my_leave_balance_screen.dart';
+import 'package:easytime_online/ui/leave_application_screen.dart';
+import 'package:easytime_online/ui/pending_request_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
 import 'package:easytime_online/api/attendance_history_api.dart';
-=======
-import 'package:easytime_online/monthly_work_hours_api.dart';
-import 'package:easytime_online/weekly_work_hours_api.dart';
-import 'package:easytime_online/monthly_work_hours_detail_screen.dart';
-import 'package:easytime_online/status_pie_chart_api.dart';
-import 'package:easytime_online/attendance_history_screen.dart';
-import 'package:easytime_online/attendance_history_api.dart';
-import 'package:easytime_online/custom_page_transitions.dart';
-import 'package:easytime_online/animated_bottom_navigation.dart';
 import 'package:easytime_online/data_sync_service.dart';
 import 'package:easytime_online/data_storage_service.dart';
->>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -32,7 +26,8 @@ class DashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? userData;
   final String empKey;
 
-  const DashboardScreen({super.key, this.userName, this.userData, required this.empKey});
+  const DashboardScreen(
+      {super.key, this.userName, this.userData, required this.empKey});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -42,6 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
   final ScrollController _mainScrollController = ScrollController();
   late TabController _tabController;
+  int _currentIndex = 0;
 
   // Add state variables for work hours
   String _monthlyWorkHours = "0.0";
@@ -57,13 +53,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Data sync service
   final DataSyncService _dataSyncService = DataSyncService();
-  
+
   // API instances
   final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
   final TodayPunchesApi _todayPunchesApi = TodayPunchesApi();
   final StatusPieChartApi _statusPieChartApi = StatusPieChartApi();
   final AttendanceHistoryApi _attendanceHistoryApi = AttendanceHistoryApi();
-  
+
   // Stream subscriptions
   StreamSubscription? _monthlyWorkHoursSubscription;
   StreamSubscription? _todayPunchesSubscription;
@@ -117,7 +113,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     }
 
-<<<<<<< HEAD:lib/ui/dashboard_screen.dart
     // Start background service for work hours
     _setupWorkHoursServices();
 
@@ -126,49 +121,6 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Prefetch attendance history data in background
     _prefetchAttendanceHistory();
-=======
-    // Initialize data sync service
-    _initializeDataSync();
-  }
-  
-  // Initialize data sync service
-  Future<void> _initializeDataSync() async {
-    try {
-      // Load data from local storage first, then sync with API
-      await _dataSyncService.initialize(widget.empKey);
-      
-      // Load monthly work hours
-      final monthlyHours = await DataStorageService.getMonthlyWorkHours();
-      if (monthlyHours != null) {
-        setState(() {
-          _monthlyWorkHours = monthlyHours;
-          _isLoadingMonthlyWorkHours = false;
-        });
-      }
-      
-      // Load weekly work hours
-      final weeklyHours = await DataStorageService.getWeeklyWorkHours();
-      if (weeklyHours != null) {
-        setState(() {
-          _weeklyWorkHours = weeklyHours;
-          _isLoadingWeeklyWorkHours = false;
-        });
-      }
-      
-      // Load status pie chart data
-      final pieChartData = await DataStorageService.getStatusPieChartData();
-      if (pieChartData != null) {
-        setState(() {
-          _statusPieChartData = pieChartData;
-          _isLoadingStatusPieChart = false;
-        });
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print("Error initializing data sync: $e");
-      }
-    }
->>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
   }
 
   Future<void> _loadStatOrder() async {
@@ -204,6 +156,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         _isReorderMode = true;
         _activeDragItem = id;
         _isHolding = false; // reorder mode now controls scrolling
+        // Provide haptic feedback to indicate reorder mode is active
+        try {
+          HapticFeedback.vibrate();
+        } catch (_) {}
       });
     });
   }
@@ -242,9 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Set up work hours background services
   void _setupWorkHoursServices() {
-    // Find employee key from userData
     String? empKey = _findEmployeeKey();
-
     if (empKey != null) {
       // Set loading state
       setState(() {
@@ -395,15 +349,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   result.containsKey('status_data')) {
                 // Compare with existing data before updating
                 final newData = result['status_data'];
-                final bool shouldUpdate = _statusPieChartData == null || 
+                final bool shouldUpdate = _statusPieChartData == null ||
                     !_areMapContentsEqual(_statusPieChartData!, newData);
-                
+
                 if (shouldUpdate) {
                   _statusPieChartData = newData;
                   // Save to local storage for persistence
                   DataStorageService.saveStatusPieChartData(newData);
                 }
-                
+
                 _statusPieChartError = "";
                 if (kDebugMode && shouldUpdate) {
                   print("Updated status pie chart data: $_statusPieChartData");
@@ -461,15 +415,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // Helper method to compare two maps for equality
-  bool _areMapContentsEqual(Map<String, dynamic> map1, Map<String, dynamic> map2) {
+  bool _areMapContentsEqual(
+      Map<String, dynamic> map1, Map<String, dynamic> map2) {
     if (map1.length != map2.length) return false;
-    
+
     for (final key in map1.keys) {
       if (!map2.containsKey(key)) return false;
-      
+
       if (map1[key] != map2[key]) return false;
     }
-    
+
     return true;
   }
 
@@ -896,8 +851,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                         scale: _scaleFactor,
                       ),
                       _buildQuickActionButton(
-                        icon: Icons.event_note,
-                        label: 'Tasks',
+                        icon: Icons.access_time,
+                        label: 'Time Card',
                         color: Colors.blue,
                         scale: _scaleFactor,
                       ),
@@ -952,7 +907,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ],
       ),
-<<<<<<< HEAD:lib/ui/dashboard_screen.dart
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           labelTextStyle: MaterialStatePropertyAll(
@@ -1016,8 +970,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           ],
         ),
       ),
-=======
->>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
     );
   }
 
@@ -1035,139 +987,136 @@ class _DashboardScreenState extends State<DashboardScreen>
     required int flex,
     bool isWorkHours = false,
   }) {
-    return Expanded(
-      flex: flex,
-      child: GestureDetector(
-        onTap: () {
-          // Handle tap based on card type
-          if (title == 'Monthly') {
-            _navigateToMonthlyWorkHoursDetail();
-          } else if (title == 'Today') {
-            // Future implementation for today punches details
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [color, color.withAlpha(179)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return GestureDetector(
+      onTap: () {
+        // Handle tap based on card type
+        if (title == 'Monthly') {
+          _navigateToMonthlyWorkHoursDetail();
+        } else if (title == 'Today') {
+          // Future implementation for today punches details
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color, color.withAlpha(179)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: color.withAlpha(77),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: color.withAlpha(77),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(51),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withAlpha(51),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12 *
-                            (MediaQuery.of(context).size.width / 360)
-                                .clamp(0.75, 1.0) as double,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12 *
+                          (MediaQuery.of(context).size.width / 360)
+                              .clamp(0.75, 1.0) as double,
+                      fontWeight: FontWeight.w500,
                     ),
-                    const SizedBox(height: 6),
-                    // For Today card show IN/OUT on two lines with larger text
-                    if (title == 'Today')
-                      Flexible(
-                        child: FittedBox(
-                          alignment: Alignment.centerLeft,
-                          fit: BoxFit.scaleDown,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'IN: ${_inPunch.isNotEmpty ? _formatToHHMM(_inPunch) : '-'}',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 32 *
-                                      (MediaQuery.of(context).size.width / 360)
-                                          .clamp(0.75, 1.0) as double,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                  const SizedBox(height: 6),
+                  // For Today card show IN/OUT on two lines with larger text
+                  if (title == 'Today')
+                    Flexible(
+                      child: FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'IN: ${_inPunch.isNotEmpty ? _formatToHHMM(_inPunch) : '-'}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 32 *
+                                    (MediaQuery.of(context).size.width / 360)
+                                        .clamp(0.75, 1.0) as double,
+                                fontWeight: FontWeight.bold,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'OUT: ${_outPunch.isNotEmpty ? _formatToHHMM(_outPunch) : '-'}',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 30 *
-                                      (MediaQuery.of(context).size.width / 360)
-                                          .clamp(0.75, 1.0) as double,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      Flexible(
-                        child: FittedBox(
-                          alignment: Alignment.centerLeft,
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            value,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22 *
-                                  (MediaQuery.of(context).size.width / 360)
-                                      .clamp(0.75, 1.0) as double,
-                              fontWeight: FontWeight.bold,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'OUT: ${_outPunch.isNotEmpty ? _formatToHHMM(_outPunch) : '-'}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 30 *
+                                    (MediaQuery.of(context).size.width / 360)
+                                        .clamp(0.75, 1.0) as double,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withAlpha(204),
-                        fontSize: 10 *
-                            (MediaQuery.of(context).size.width / 360)
-                                .clamp(0.75, 1.0) as double,
+                    )
+                  else
+                    Flexible(
+                      child: FittedBox(
+                        alignment: Alignment.centerLeft,
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          value,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22 *
+                                (MediaQuery.of(context).size.width / 360)
+                                    .clamp(0.75, 1.0) as double,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
                     ),
-                  ],
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(204),
+                      fontSize: 10 *
+                          (MediaQuery.of(context).size.width / 360)
+                              .clamp(0.75, 1.0) as double,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1250,15 +1199,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           // If this item is active for dragging, wrap it in Draggable
           if (_isReorderMode && _activeDragItem == id) {
-            return LongPressDraggable<String>(
+            return Draggable<String>(
               data: id,
-              feedback: Material(
-                color: Colors.transparent,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: Opacity(opacity: 0.95, child: card),
-                ),
-              ),
+              feedback: _buildStatCardFeedback(id),
               childWhenDragging: Opacity(opacity: 0.4, child: card),
               onDragEnd: (details) {
                 // reset reorder mode after drag
@@ -1274,6 +1217,67 @@ class _DashboardScreenState extends State<DashboardScreen>
 
           return child;
         },
+      ),
+    );
+  }
+
+  // Compact drag feedback to avoid huge overlay while dragging
+  Widget _buildStatCardFeedback(String id) {
+    final bool isMonthly = id == 'Monthly';
+    final Color color = isMonthly ? Colors.blue : Colors.green;
+    final String title = isMonthly ? 'Monthly' : 'Today';
+    final String value = isMonthly
+        ? (_isLoadingMonthlyWorkHours ? '...' : _monthlyWorkHours)
+        : (_isLoadingTodayPunches
+            ? '...'
+            : ((_inPunch.isNotEmpty || _outPunch.isNotEmpty)
+                ? 'IN: ${_formatToHHMM(_inPunch)}\nOUT: ${_formatToHHMM(_outPunch)}'
+                : 'No punches'));
+
+    final double width = (MediaQuery.of(context).size.width - 16 * 2 - 12) / 2;
+    const double height = 100;
+
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      color: Colors.transparent,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: width,
+          height: height,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [color, color.withAlpha(179)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1571,28 +1575,17 @@ class _DashboardScreenState extends State<DashboardScreen>
         doubleValue = value ? 1.0 : 0.0;
       }
 
-      final double percentage =
-          total > 0 ? doubleValue / total * 100 : 0;
+      final double percentage = total > 0 ? doubleValue / total * 100 : 0;
       final formattedPercentage = percentage.toStringAsFixed(1);
 
-<<<<<<< HEAD:lib/ui/dashboard_screen.dart
       // Create pie section; do NOT render percentage text inside the slice.
       // Percentages will be shown in the legend to avoid overlap on small screens.
       sections.add(
         PieChartSectionData(
           color: color,
-          value: (value as num).toDouble(),
+          value: doubleValue,
           title: '', // hide title inside slice to prevent overlap
           radius: 70,
-=======
-      // Create pie section with count value instead of percentage
-      sections.add(
-        PieChartSectionData(
-          color: color,
-          value: doubleValue,
-          title: '$value',
-          radius: 70, // Matches the new radius in the chart
->>>>>>> b2a1f80a1365163589978a7f78834109c12a238c:lib/dashboard_screen.dart
           titleStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -1647,11 +1640,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       );
     });
 
-    // Return the completed pie chart widget with clean design
+    // Return the completed pie chart widget with clean design (simplified)
     return Container(
-      height: 450, // Increased to accommodate the status summary section
-      margin: const EdgeInsets.fromLTRB(
-          16, 0, 16, 10), // Reduced bottom margin from 16 to 10
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1664,13 +1655,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         ],
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.max,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Title bar with gradient - fixed height
           Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             decoration: const BoxDecoration(
-              color: Color(0xFF506D94), // Navy blue like in screenshot
+              color: Color(0xFF506D94),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -1681,14 +1671,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 Expanded(
                   child: Row(
-                    children: [
-                      const Icon(Icons.pie_chart,
-                          color: Colors.white, size: 20),
-                      const SizedBox(width: 8),
+                    children: const [
+                      Icon(Icons.pie_chart, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Attendance Summary',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -1712,119 +1701,52 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-
-          // Add a divider to clearly separate header from content
+          Container(height: 4, color: Colors.grey[100]),
+          // Content
           Container(
-            height: 4,
-            color: Colors.grey[100],
-          ),
-
-          // Content container with clear bounds
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.only(top: 10), // Reduced from 12 to 10
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
+            padding: const EdgeInsets.only(top: 10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
               ),
-              child: Column(
-                children: [
-                  // Add extra spacing after header - reduced from 8 to 5
-                  const SizedBox(height: 5),
-
-                  // Pie chart area with fixed height to prevent overlap
-                  SizedBox(
-                    height: 175, // Increased from 165 to 175
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: 1.3,
-                        child: PieChart(
-                          PieChartData(
-                            centerSpaceRadius: 30,
-                            sectionsSpace: 2,
-                            centerSpaceColor: Colors.white,
-                            borderData: FlBorderData(show: false),
-                            sections: sections
-                                .map((section) => section.copyWith(
-                                      radius: 70, // Even smaller radius
-                                      titleStyle: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ))
-                                .toList(),
-                          ),
-                          swapAnimationDuration:
-                              const Duration(milliseconds: 500),
-                          swapAnimationCurve: Curves.easeInOutQuint,
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 5),
+                SizedBox(
+                  height: 175,
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 1.3,
+                      child: PieChart(
+                        PieChartData(
+                          centerSpaceRadius: 30,
+                          sectionsSpace: 2,
+                          centerSpaceColor: Colors.white,
+                          borderData: FlBorderData(show: false),
+                          sections: sections,
                         ),
+                        swapAnimationDuration:
+                            const Duration(milliseconds: 500),
+                        swapAnimationCurve: Curves.easeInOutQuint,
                       ),
                     ),
                   ),
-
-                  // Legend with compact layout - reduced from 100 to 90
-                  Container(
-                    height: 90, // Smaller fixed height for legend
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
-                    child: statusMap.length <= 3
-                        ? _buildLegendColumn(legendItems)
-                        : ListView(
-                            padding: EdgeInsets.zero,
-                            physics: const ClampingScrollPhysics(),
-                            children: legendItems,
-                          ),
-                  ),
-                  
-                  // Status counts summary section
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[200]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Status Summary',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
+                ),
+                Container(
+                  height: 90,
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+                  child: statusMap.length <= 3
+                      ? _buildLegendColumn(legendItems)
+                      : ListView(
+                          padding: EdgeInsets.zero,
+                          physics: const ClampingScrollPhysics(),
+                          children: legendItems,
                         ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 8,
-                          children: statusMap.entries.map((entry) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: getRandomColor(statusMap.keys.toList().indexOf(entry.key), entry.key).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                '${getStatusLabel(entry.key)}: ${entry.value}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: getRandomColor(statusMap.keys.toList().indexOf(entry.key), entry.key),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -1876,6 +1798,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         'color': Colors.blue,
       },
       {
+        'title': 'Pending Request',
+        'icon': Icons.pending_actions,
+        'color': Colors.teal,
+      },
+      {
         'title': 'Manual Punch',
         'icon': Icons.edit,
         'color': Colors.orange,
@@ -1908,6 +1835,24 @@ class _DashboardScreenState extends State<DashboardScreen>
         return InkWell(
           onTap: () {
             final title = item['title'] as String;
+            if (title == 'Leave Application') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        LeaveApplicationScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
+            if (title == 'Pending Request') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        PendingRequestScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Open: $title')),
             );
@@ -1964,144 +1909,125 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildTeamTab() {
+    // Views tab: show a 2x2 grid similar to Applications
+    final views = [
+      {
+        'title': 'My Approver',
+        'icon': Icons.supervisor_account,
+        'color': Colors.blue,
+      },
+      {
+        'title': 'My Leave Balance',
+        'icon': Icons.account_balance_wallet,
+        'color': Colors.teal,
+      },
+      {
+        'title': 'My Team',
+        'icon': Icons.group,
+        'color': Colors.green,
+      },
+      {
+        'title': 'Activity',
+        'icon': Icons.timeline,
+        'color': Colors.orange,
+      },
+      {
+        'title': 'Notifications',
+        'icon': Icons.notifications,
+        'color': Colors.purple,
+      },
+    ];
+
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      itemCount: views.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        childAspectRatio: 1.1,
       ),
-      itemCount: 6,
-      shrinkWrap: true,
       itemBuilder: (context, index) {
-        final members = [
-          {
-            'name': 'John Smith',
-            'avatar': 'J',
-            'role': 'Project Manager',
-            'color': Colors.blue,
-            'status': 'Online',
+        final item = views[index];
+        return InkWell(
+          onTap: () {
+            final title = item['title'] as String;
+            if (title == 'My Approver') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => ApproverScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
+            if (title == 'My Leave Balance') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        MyLeaveBalanceScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
+            if (title == 'My Team') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => TeamScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Open: $title')),
+            );
           },
-          {
-            'name': 'Sarah Johnson',
-            'avatar': 'S',
-            'role': 'UI Designer',
-            'color': Colors.green,
-            'status': 'In a meeting',
-          },
-          {
-            'name': 'Michael Brown',
-            'avatar': 'M',
-            'role': 'Developer',
-            'color': Colors.orange,
-            'status': 'Online',
-          },
-          {
-            'name': 'Lisa Davis',
-            'avatar': 'L',
-            'role': 'QA Tester',
-            'color': Colors.purple,
-            'status': 'Away',
-          },
-          {
-            'name': 'David Wilson',
-            'avatar': 'D',
-            'role': 'Backend Dev',
-            'color': Colors.red,
-            'status': 'Offline',
-          },
-          {
-            'name': 'Emma Taylor',
-            'avatar': 'E',
-            'role': 'UX Researcher',
-            'color': Colors.teal,
-            'status': 'Online',
-          },
-        ];
-
-        if (index >= members.length) return null;
-
-        final member = members[index];
-        final bool isOnline = member['status'] == 'Online';
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(8),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: (member['color'] as Color).withAlpha(51),
-                    child: Text(
-                      member['avatar'] as String,
-                      style: TextStyle(
-                        color: member['color'] as Color,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: (item['color'] as Color).withAlpha(30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    item['icon'] as IconData,
+                    color: item['color'] as Color,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: Text(
+                    item['title'] as String,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ),
-                  Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: isOnline ? Colors.green : Colors.grey,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                member['name'] as String,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                member['role'] as String,
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isOnline
-                      ? Colors.green.withAlpha(26)
-                      : Colors.grey.withAlpha(26),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  member['status'] as String,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: isOnline ? Colors.green : Colors.grey[700],
-                    fontWeight: FontWeight.w500,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
