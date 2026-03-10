@@ -12,6 +12,7 @@ import 'package:easytime_online/ui/leave_application_screen.dart';
 import 'package:easytime_online/ui/pending_request_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
+import 'package:easytime_online/ui/time_card_screen.dart';
 import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:easytime_online/data_sync_service.dart';
 import 'package:easytime_online/data_storage_service.dart';
@@ -855,6 +856,27 @@ class _DashboardScreenState extends State<DashboardScreen>
                         label: 'Time Card',
                         color: Colors.blue,
                         scale: _scaleFactor,
+                        onTap: () {
+                          String? empKey = _findEmployeeKey();
+                          if (empKey != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TimeCardScreen(
+                                  empKey: empKey,
+                                ),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Employee key not found. Cannot load time card.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
                       ),
                       _buildQuickActionButton(
                         icon: Icons.bar_chart,
@@ -1310,32 +1332,36 @@ class _DashboardScreenState extends State<DashboardScreen>
     required String label,
     required Color color,
     double scale = 1.0,
+    VoidCallback? onTap,
   }) {
     return Expanded(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withAlpha(26),
-              borderRadius: BorderRadius.circular(10),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withAlpha(26),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(height: 8),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(
-                  fontSize: 12 * scale, color: const Color(0xFF555555)),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-              textAlign: TextAlign.center,
+            const SizedBox(height: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                    fontSize: 12 * scale, color: const Color(0xFF555555)),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

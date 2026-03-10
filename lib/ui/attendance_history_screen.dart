@@ -7,10 +7,12 @@ import 'package:easytime_online/custom_page_transitions.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   final String empKey;
+  final bool initialShowAsTable;
 
   const AttendanceHistoryScreen({
     super.key,
     required this.empKey,
+    this.initialShowAsTable = false,
   });
 
   @override
@@ -41,6 +43,9 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
     _selectedDate = DateTime.now();
     _selectedMonth = _selectedDate.month.toString().padLeft(2, '0');
     _selectedYear = _selectedDate.year.toString();
+
+    // Respect initial view preference
+    _showAsTable = widget.initialShowAsTable;
 
     // Set up subscription to attendance data updates
     _attendanceHistorySubscription =
