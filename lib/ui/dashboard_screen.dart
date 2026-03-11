@@ -9,6 +9,7 @@ import 'package:easytime_online/ui/approver_screen.dart';
 import 'package:easytime_online/ui/team_screen.dart';
 import 'package:easytime_online/ui/my_leave_balance_screen.dart';
 import 'package:easytime_online/ui/leave_application_screen.dart';
+import 'package:easytime_online/ui/manual_punch_list_screen.dart';
 import 'package:easytime_online/ui/pending_request_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
@@ -1876,6 +1877,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                 MaterialPageRoute(
                     builder: (_) =>
                         PendingRequestScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
+            if (title == 'Manual Punch') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        ManualPunchListScreen(empKey: widget.empKey)),
               );
               return;
             }
