@@ -39,6 +39,263 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
     _loadCachedLeaveTypes();
   }
 
+  Future<List<String>?> _showEmployeeSelector() async {
+    final temp = List<String>.from(_selectedEmployees);
+    String query = '';
+    return showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx2, setState2) {
+          final filtered = _sampleEmployees.where((e) {
+            if (query.trim().isEmpty) return true;
+            final name = (e['emp_name'] ?? '').toString().toLowerCase();
+            final code = (e['emp_code'] ?? '').toString().toLowerCase();
+            final q = query.toLowerCase();
+            return name.contains(q) || code.contains(q);
+          }).toList();
+
+          // Respect keyboard insets and limit height to avoid overflow
+          final mq = MediaQuery.of(ctx);
+          final maxHeight = mq.size.height * 0.75;
+          return Padding(
+            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+            child: SafeArea(
+              child: SizedBox(
+                height: maxHeight,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                              child: Text('Select employees',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600))),
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, null),
+                              child: const Text('CANCEL')),
+                          ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, temp),
+                              child: const Text('DONE')),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.search),
+                            hintText: 'Search employees',
+                            border: OutlineInputBorder()),
+                        onChanged: (v) => setState2(() => query = v),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: filtered.length,
+                        itemBuilder: (_, idx) {
+                          final item = filtered[idx];
+                          final key = item['emp_key'] ?? '';
+                          final name = item['emp_name'] ?? '';
+                          final code = item['emp_code'] ?? key;
+                          final selected = temp.contains(key);
+                          return Container(
+                            color: selected ? Colors.blue.shade50 : null,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              leading: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: selected
+                                        ? const Color(0xFF1E3C72)
+                                        : Colors.grey[300],
+                                    child: Text(
+                                      (name ?? '').toString().isNotEmpty
+                                          ? (name
+                                              .toString()
+                                              .split(' ')
+                                              .map((s) =>
+                                                  s.isNotEmpty ? s[0] : '')
+                                              .take(2)
+                                              .join())
+                                          : (code ?? '').toString().substring(
+                                              0,
+                                              code.toString().length > 2
+                                                  ? 2
+                                                  : code.toString().length),
+                                      style: TextStyle(
+                                          color: selected
+                                              ? Colors.white
+                                              : Colors.black87),
+                                    ),
+                                  ),
+                                  if (selected)
+                                    Positioned(
+                                      right: -2,
+                                      bottom: -2,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        padding: const EdgeInsets.all(2),
+                                        child: const Icon(
+                                          Icons.check_circle,
+                                          color: Color(0xFF1E3C72),
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              title: Text(
+                                (name.toString().trim().isNotEmpty)
+                                    ? '$name ($code)'
+                                    : code,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              onTap: () => setState2(() {
+                                if (selected)
+                                  temp.remove(key);
+                                else
+                                  temp.add(key);
+                              }),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Future<String?> _showLeaveTypeSelector() async {
+    String query = '';
+    final current = _leaveType;
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx2, setState2) {
+          final filtered = _leaveTypes.where((e) {
+            if (query.trim().isEmpty) return true;
+            final code = (e['leave_type_code'] ?? '').toString().toLowerCase();
+            final key = (e['leave_type_key'] ?? '').toString().toLowerCase();
+            final q = query.toLowerCase();
+            return code.contains(q) || key.contains(q);
+          }).toList();
+
+          final mq = MediaQuery.of(ctx);
+          final maxHeight = mq.size.height * 0.6;
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+            child: SafeArea(
+              child: SizedBox(
+                height: maxHeight,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                              child: Text('Leave Type',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600))),
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, null),
+                              child: const Text('CANCEL')),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: TextField(
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.search),
+                            hintText: 'Search leave types',
+                            border: OutlineInputBorder()),
+                        onChanged: (v) => setState2(() => query = v),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, idx) {
+                          final item = filtered[idx];
+                          final key = (item['leave_type_key'] ?? '').toString();
+                          final code =
+                              (item['leave_type_code'] ?? key).toString();
+                          final selected = key == current;
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            leading: CircleAvatar(
+                              backgroundColor: selected
+                                  ? const Color(0xFF1E3C72)
+                                  : Colors.grey[300],
+                              child: Text(
+                                code.isNotEmpty
+                                    ? code.substring(
+                                        0, code.length > 2 ? 2 : code.length)
+                                    : key.isNotEmpty
+                                        ? key.substring(
+                                            0, key.length > 2 ? 2 : key.length)
+                                        : '',
+                                style: TextStyle(
+                                    color: selected
+                                        ? Colors.white
+                                        : Colors.black87),
+                              ),
+                            ),
+                            title: Text(code,
+                                style: const TextStyle(fontSize: 14)),
+                            onTap: () => Navigator.pop(ctx, key),
+                            trailing: selected
+                                ? const Icon(Icons.check,
+                                    color: Color(0xFF1E3C72))
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
   Future<void> _loadCachedEmployees() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -285,127 +542,7 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
                             ),
                             child: InkWell(
                               onTap: () async {
-                                final res = await showDialog<List<String>>(
-                                  context: context,
-                                  builder: (ctx) {
-                                    final temp =
-                                        List<String>.from(_selectedEmployees);
-                                    return Dialog(
-                                      insetPadding: const EdgeInsets.symmetric(
-                                          horizontal: 40, vertical: 24),
-                                      child: StatefulBuilder(
-                                          builder: (dCtx, setDialogState) {
-                                        return Material(
-                                          elevation: 4,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(6)),
-                                          child: ConstrainedBox(
-                                            constraints: const BoxConstraints(
-                                                maxHeight: 360),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Flexible(
-                                                  child: ListView(
-                                                    shrinkWrap: true,
-                                                    padding: const EdgeInsets
-                                                        .symmetric(vertical: 8),
-                                                    children: [
-                                                      for (final item
-                                                          in _sampleEmployees)
-                                                        Container(
-                                                          color: temp.contains(
-                                                                  item[
-                                                                      'emp_key'])
-                                                              ? Colors
-                                                                  .blue.shade50
-                                                              : null,
-                                                          child: ListTile(
-                                                            dense: true,
-                                                            title: Text(
-                                                                ((item['emp_name'] !=
-                                                                            null &&
-                                                                        (item['emp_name'] ??
-                                                                                '')
-                                                                            .toString()
-                                                                            .trim()
-                                                                            .isNotEmpty)
-                                                                    ? '${item['emp_name']}(${item['emp_code'] ?? item['emp_key'] ?? ''})'
-                                                                    : (item['emp_code'] ??
-                                                                        item[
-                                                                            'emp_key'] ??
-                                                                        '')),
-                                                                style:
-                                                                    const TextStyle(
-                                                                        fontSize:
-                                                                            14)),
-                                                            contentPadding:
-                                                                const EdgeInsets
-                                                                    .symmetric(
-                                                                    horizontal:
-                                                                        12),
-                                                            trailing: temp
-                                                                    .contains(item[
-                                                                        'emp_key'])
-                                                                ? const Icon(
-                                                                    Icons.check,
-                                                                    color: Color(
-                                                                        0xFF1E3C72))
-                                                                : const SizedBox(
-                                                                    width: 24),
-                                                            onTap: () =>
-                                                                setDialogState(
-                                                                    () {
-                                                              final key = item[
-                                                                      'emp_key'] ??
-                                                                  '';
-                                                              if (temp.contains(
-                                                                  key))
-                                                                temp.remove(
-                                                                    key);
-                                                              else
-                                                                temp.add(key);
-                                                            }),
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const Divider(height: 1),
-                                                Padding(
-                                                  padding: const EdgeInsets
-                                                      .symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 8),
-                                                  child: Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment.end,
-                                                    children: [
-                                                      TextButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                  ctx, null),
-                                                          child: const Text(
-                                                              'CANCEL')),
-                                                      const SizedBox(width: 8),
-                                                      ElevatedButton(
-                                                          onPressed: () =>
-                                                              Navigator.pop(
-                                                                  ctx, temp),
-                                                          child:
-                                                              const Text('OK')),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }),
-                                    );
-                                  },
-                                );
+                                final res = await _showEmployeeSelector();
                                 if (res != null) {
                                   setState(() {
                                     _selectedEmployees = res;
@@ -416,34 +553,50 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
                               child: Row(
                                 children: [
                                   Expanded(
-                                    child: Builder(builder: (_) {
-                                      if (_selectedEmployees.isEmpty) {
-                                        return const Text('Select employees',
-                                            style: TextStyle(fontSize: 16));
-                                      }
-                                      final displayList =
-                                          _selectedEmployees.map((k) {
-                                        final found =
-                                            _sampleEmployees.firstWhere(
-                                                (e) => e['emp_key'] == k,
-                                                orElse: () => {
-                                                      'emp_key': k,
-                                                      'emp_code': k,
-                                                      'emp_name': k
-                                                    });
-                                        final name = found['emp_name'] ?? '';
-                                        final code = found['emp_code'] ?? k;
-                                        return (name.trim().isNotEmpty)
-                                            ? '$name($code)'
-                                            : code;
-                                      }).toList();
-                                      final text = displayList.length > 4
-                                          ? '${displayList.sublist(0, 4).join(', ')}, ...'
-                                          : displayList.join(', ');
-                                      return Text(text,
-                                          style: const TextStyle(fontSize: 16),
-                                          overflow: TextOverflow.ellipsis);
-                                    }),
+                                    child: _selectedEmployees.isEmpty
+                                        ? const Text('Select employees',
+                                            style: TextStyle(fontSize: 16))
+                                        : SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: Row(
+                                              children:
+                                                  _selectedEmployees.map((k) {
+                                                final found =
+                                                    _sampleEmployees.firstWhere(
+                                                        (e) =>
+                                                            e['emp_key'] == k,
+                                                        orElse: () => {
+                                                              'emp_key': k,
+                                                              'emp_code': k,
+                                                              'emp_name': k
+                                                            });
+                                                final name =
+                                                    found['emp_name'] ?? '';
+                                                final code =
+                                                    found['emp_code'] ?? k;
+                                                final label = (name
+                                                        .toString()
+                                                        .trim()
+                                                        .isNotEmpty)
+                                                    ? '$name($code)'
+                                                    : code;
+                                                return Padding(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(horizontal: 4),
+                                                  child: InputChip(
+                                                    label: Text(label),
+                                                    onDeleted: () =>
+                                                        setState(() {
+                                                      _selectedEmployees
+                                                          .remove(k);
+                                                      state.didChange(
+                                                          _selectedEmployees);
+                                                    }),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
                                   ),
                                   Icon(Icons.arrow_drop_down,
                                       size: 24, color: Colors.grey[700]),
@@ -456,28 +609,54 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                        labelText: 'Leave Type',
-                        isDense: true,
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 12)),
-                    items: _leaveTypes.isNotEmpty
-                        ? _leaveTypes
-                            .map((e) => DropdownMenuItem(
-                                value: (e['leave_type_key'] ?? '').toString(),
-                                child: Text(
-                                    (e['leave_type_code'] ?? '').toString())))
-                            .toList()
-                        : <DropdownMenuItem<String>>[
-                            const DropdownMenuItem(
-                                value: '', child: Text('No leave types'))
-                          ],
-                    onChanged: (v) => setState(() => _leaveType = v ?? ''),
+                  FormField<String>(
+                    initialValue: _leaveType,
                     validator: (v) => (v == null || v.trim().isEmpty)
                         ? 'Select leave type'
                         : null,
+                    builder: (state) {
+                      String display = 'Select leave type';
+                      if ((_leaveType).trim().isNotEmpty) {
+                        final found = _leaveTypes.firstWhere(
+                            (e) =>
+                                (e['leave_type_key'] ?? '').toString() ==
+                                _leaveType,
+                            orElse: () => {});
+                        final code =
+                            (found['leave_type_code'] ?? '').toString();
+                        display = code.isNotEmpty ? code : _leaveType;
+                      }
+                      return InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Leave Type',
+                          errorText: state.errorText,
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                        ),
+                        child: InkWell(
+                          onTap: () async {
+                            final res = await _showLeaveTypeSelector();
+                            if (res != null) {
+                              setState(() {
+                                _leaveType = res;
+                                state.didChange(res);
+                              });
+                            }
+                          },
+                          child: Row(
+                            children: [
+                              Expanded(
+                                  child: Text(display,
+                                      style: const TextStyle(fontSize: 16))),
+                              Icon(Icons.arrow_drop_down,
+                                  size: 24, color: Colors.grey[700]),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 8),
                   Row(
