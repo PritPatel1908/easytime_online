@@ -290,7 +290,7 @@ class _ManualPunchApplicationScreenState
                                       right: -2,
                                       bottom: -2,
                                       child: Container(
-                                        decoration: BoxDecoration(
+                                        decoration: const BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
                                         ),
@@ -311,10 +311,11 @@ class _ManualPunchApplicationScreenState
                                 style: const TextStyle(fontSize: 14),
                               ),
                               onTap: () => setState2(() {
-                                if (selected)
+                                if (selected) {
                                   temp.remove(key);
-                                else
+                                } else {
                                   temp.add(key);
+                                }
                               }),
                             ),
                           );
@@ -488,14 +489,14 @@ class _ManualPunchApplicationScreenState
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Manual Punch Application',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -710,12 +711,12 @@ class _ManualPunchApplicationScreenState
                           const SizedBox(height: 18),
                           ElevatedButton(
                             onPressed: _submit,
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1E3C72)),
                             child: const Padding(
                               padding: EdgeInsets.symmetric(vertical: 14.0),
                               child: Text('Submit Manual Punch'),
                             ),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1E3C72)),
                           ),
                         ],
                       ),

@@ -69,36 +69,39 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
       // Resolve entity_name param (use 'all' for all types).
       // Be flexible: modal might return the key or the label. Normalize input
       // (trim, lowercase) and match against keys and labels in a tolerant way.
-      String _normalize(String v) => v.trim().toLowerCase();
+      String normalize(String v) => v.trim().toLowerCase();
 
-      String _resolveEntityKey(String s) {
-        final inStr = _normalize(s);
+      String resolveEntityKey(String s) {
+        final inStr = normalize(s);
         if (inStr.isEmpty) return 'all';
         // direct key match
         for (final k in _typeOptions.keys) {
-          if (_normalize(k) == inStr) return k;
+          if (normalize(k) == inStr) return k;
         }
         // match by label (value)
         for (final e in _typeOptions.entries) {
-          if (_normalize(e.value) == inStr) return e.key;
+          if (normalize(e.value) == inStr) return e.key;
         }
         // tolerant match: remove non-alphanum and compare
         String clean(String x) => x.replaceAll(RegExp(r'[^a-z0-9]'), '');
         final inClean = clean(inStr);
         if (inClean.isEmpty) return 'all';
         for (final e in _typeOptions.entries) {
-          if (clean(_normalize(e.key)) == inClean ||
-              clean(_normalize(e.value)) == inClean) return e.key;
+          if (clean(normalize(e.key)) == inClean ||
+              clean(normalize(e.value)) == inClean) {
+            return e.key;
+          }
         }
         // fallback to provided string (server may accept it), or 'all'
         return _typeOptions.containsKey(s) ? s : 'all';
       }
 
-      final entityName = _resolveEntityKey(entityOverride ?? _selectedType);
+      final entityName = resolveEntityKey(entityOverride ?? _selectedType);
 
-      if (kDebugMode)
+      if (kDebugMode) {
         print(
             'Loading pending requests: emp_key=${widget.empKey} entity_name=$entityName');
+      }
 
       // Fetch emp scope and pending requests in parallel
       final pendingRes = await PendingRequestsApi()
@@ -203,14 +206,14 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Pending Request',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -236,7 +239,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
             children: [
               const SizedBox(height: 6),
               // Type selector (modern full-width tappable card)
-              Container(
+              SizedBox(
                 width: double.infinity,
                 child: Material(
                   color: Colors.white,
@@ -338,7 +341,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                     Shimmer.fromColors(
                                       baseColor: Colors.grey[300]!,
                                       highlightColor: Colors.grey[100]!,
-                                      child: CircleAvatar(
+                                      child: const CircleAvatar(
                                           radius: 18,
                                           backgroundColor: Colors.white),
                                     ),
@@ -417,11 +420,12 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                               '')
                                           .toString();
 
-                                  String _fmtDate(String raw) {
+                                  String fmtDate(String raw) {
                                     try {
                                       final d = DateTime.tryParse(raw);
-                                      if (d == null)
+                                      if (d == null) {
                                         return raw.split(' ').first;
+                                      }
                                       return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
                                     } catch (_) {
                                       return raw;
@@ -441,9 +445,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'action_taken_time'
                                       ]);
                                       displayTitle =
-                                          '${days.isNotEmpty ? days + " day(s) • " : ''}${_typeOptions[entity] ?? 'Leave Application'}';
-                                      displaySubtitle = _fmtDate(
-                                          ld.isNotEmpty ? ld : dateStr);
+                                          '${days.isNotEmpty ? "$days day(s) • " : ''}${_typeOptions[entity] ?? 'Leave Application'}';
+                                      displaySubtitle =
+                                          fmtDate(ld.isNotEmpty ? ld : dateStr);
                                       break;
                                     case 'miss_punch':
                                       final punchTime = _getField(r, [
@@ -459,8 +463,8 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'miss_punch_punch_type_key'
                                       ]);
                                       displayTitle =
-                                          '${_typeOptions[entity] ?? 'Miss Punch'}${punchType.isNotEmpty ? ' • ' + punchType : ''}';
-                                      displaySubtitle = _fmtDate(
+                                          '${_typeOptions[entity] ?? 'Miss Punch'}${punchType.isNotEmpty ? ' • $punchType' : ''}';
+                                      displaySubtitle = fmtDate(
                                           punchTime.isNotEmpty
                                               ? punchTime
                                               : appDate);
@@ -475,10 +479,10 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'manual_att_application_date',
                                         'action_taken_time'
                                       ]);
-                                      displayTitle =
-                                          '${_typeOptions[entity] ?? 'Manual Attendance'}';
+                                      displayTitle = _typeOptions[entity] ??
+                                          'Manual Attendance';
                                       displaySubtitle =
-                                          '${inTime.isNotEmpty ? inTime : ''}${inTime.isNotEmpty && outTime.isNotEmpty ? ' → ' : ''}${outTime.isNotEmpty ? outTime : _fmtDate(appDate)}';
+                                          '${inTime.isNotEmpty ? inTime : ''}${inTime.isNotEmpty && outTime.isNotEmpty ? ' → ' : ''}${outTime.isNotEmpty ? outTime : fmtDate(appDate)}';
                                       break;
                                     case 'coff_application':
                                       final coffDate = _getField(r, [
@@ -486,9 +490,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'coff_application_date',
                                         'coff_from_date'
                                       ]);
-                                      displayTitle =
-                                          '${_typeOptions[entity] ?? 'C-off Application'}';
-                                      displaySubtitle = _fmtDate(coffDate);
+                                      displayTitle = _typeOptions[entity] ??
+                                          'C-off Application';
+                                      displaySubtitle = fmtDate(coffDate);
                                       break;
                                     case 'overtime_apply':
                                       final mins = _getField(r, [
@@ -501,10 +505,10 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'action_taken_time'
                                       ]);
                                       displayTitle =
-                                          '${_typeOptions[entity] ?? 'Overtime'}';
+                                          _typeOptions[entity] ?? 'Overtime';
                                       displaySubtitle = mins.isNotEmpty
-                                          ? '${mins} min'
-                                          : _fmtDate(otDate.isNotEmpty
+                                          ? '$mins min'
+                                          : fmtDate(otDate.isNotEmpty
                                               ? otDate
                                               : dateStr);
                                       break;
@@ -513,9 +517,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'shift_application_date',
                                         'action_taken_time'
                                       ]);
-                                      displayTitle =
-                                          '${_typeOptions[entity] ?? 'Shift Change'}';
-                                      displaySubtitle = _fmtDate(
+                                      displayTitle = _typeOptions[entity] ??
+                                          'Shift Change';
+                                      displaySubtitle = fmtDate(
                                           sApp.isNotEmpty ? sApp : dateStr);
                                       break;
                                     case 'short_leave_application':
@@ -524,8 +528,8 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'action_taken_time'
                                       ]);
                                       displayTitle =
-                                          '${_typeOptions[entity] ?? 'Short Leave'}';
-                                      displaySubtitle = _fmtDate(
+                                          _typeOptions[entity] ?? 'Short Leave';
+                                      displaySubtitle = fmtDate(
                                           sApp.isNotEmpty ? sApp : dateStr);
                                       break;
                                     case 'od_leave_application':
@@ -534,8 +538,8 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'action_taken_time'
                                       ]);
                                       displayTitle =
-                                          '${_typeOptions[entity] ?? 'Out Duty'}';
-                                      displaySubtitle = _fmtDate(
+                                          _typeOptions[entity] ?? 'Out Duty';
+                                      displaySubtitle = fmtDate(
                                           oApp.isNotEmpty ? oApp : dateStr);
                                       break;
                                     case 'wo_application':
@@ -543,9 +547,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                         'wo_application_date',
                                         'action_taken_time'
                                       ]);
-                                      displayTitle =
-                                          '${_typeOptions[entity] ?? 'Weekly Off Change'}';
-                                      displaySubtitle = _fmtDate(
+                                      displayTitle = _typeOptions[entity] ??
+                                          'Weekly Off Change';
+                                      displaySubtitle = fmtDate(
                                           wApp.isNotEmpty ? wApp : dateStr);
                                       break;
                                     default:
@@ -553,7 +557,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                           (entity.isNotEmpty
                                               ? entity
                                               : 'Request');
-                                      displaySubtitle = _fmtDate(dateStr);
+                                      displaySubtitle = fmtDate(dateStr);
                                   }
 
                                   IconData icon = Icons.list;
@@ -600,12 +604,13 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                       .contains(itemKey),
                                                   onChanged: (v) {
                                                     setState(() {
-                                                      if (v == true)
+                                                      if (v == true) {
                                                         _selectedItems
                                                             .add(itemKey);
-                                                      else
+                                                      } else {
                                                         _selectedItems
                                                             .remove(itemKey);
+                                                      }
 
                                                       // When at least one item is selected, reveal actions
                                                       // for all visible items. When none selected,
@@ -641,7 +646,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                               const SizedBox(width: 8),
                                               // view
                                               Container(
-                                                decoration: BoxDecoration(
+                                                decoration: const BoxDecoration(
                                                     color: Colors.white,
                                                     shape: BoxShape.circle),
                                                 child: IconButton(
@@ -663,7 +668,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                                 AlertDialog(
                                                               title: Text(
                                                                   displayTitle),
-                                                              content: Text(
+                                                              content: const Text(
                                                                   'View details for this request.'),
                                                               actions: [
                                                                 TextButton(

@@ -28,14 +28,16 @@ class ManualPunchDetailScreen extends StatelessWidget {
     if (rec == null) return '-';
     final name =
         rec['approval_status_name'] ?? rec['approval_status_name'.toString()];
-    if (name != null && name.toString().trim().isNotEmpty)
+    if (name != null && name.toString().trim().isNotEmpty) {
       return name.toString();
+    }
     final key =
         rec['approval_status_key'] ?? rec['approval_status_key'.toString()];
     if (key == null) return '-';
     final k = int.tryParse(key.toString());
-    if (k != null && _approvalStatusNames.containsKey(k))
+    if (k != null && _approvalStatusNames.containsKey(k)) {
       return _approvalStatusNames[k]!;
+    }
     return key.toString();
   }
 
@@ -112,9 +114,9 @@ class ManualPunchDetailScreen extends StatelessWidget {
                     ?.toString() ??
                 '';
             final mbr = RegExp(r'\[([^\]]+)\]').firstMatch(d);
-            if (mbr != null)
+            if (mbr != null) {
               displays.add(mbr.group(1)!);
-            else if (d.trim().isNotEmpty) displays.add(d.trim());
+            } else if (d.trim().isNotEmpty) displays.add(d.trim());
           } catch (_) {}
         }
         empDisplay = displays.join(', ');
@@ -135,14 +137,14 @@ class ManualPunchDetailScreen extends StatelessWidget {
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Punch Details',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -176,8 +178,8 @@ class ManualPunchDetailScreen extends StatelessWidget {
                     Text('Time: $time',
                         style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Text('Reason',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const Text('Reason',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
                   Text(reason),
                   const SizedBox(height: 12),
@@ -249,8 +251,8 @@ class ManualPunchDetailScreen extends StatelessWidget {
                             const TextStyle(color: Colors.grey, fontSize: 12)),
                     if (reject != null) ...[
                       const SizedBox(height: 6),
-                      Text('Reject reason:',
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                      const Text('Reject reason:',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
                       Text(reject.toString()),
                     ]

@@ -205,14 +205,14 @@ class _MonthlyWorkHoursDetailScreenState
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Monthly Work Hours Detail',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),

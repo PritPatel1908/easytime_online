@@ -126,8 +126,9 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
                       value: year, child: Text(year.toString())))
                   .toList(),
               onChanged: (value) {
-                if (value != null)
+                if (value != null) {
                   setState(() => _selectedYear = value.toString());
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -141,9 +142,10 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
                           DateFormat('MMMM').format(DateTime(2022, month)))))
                   .toList(),
               onChanged: (value) {
-                if (value != null)
+                if (value != null) {
                   setState(
                       () => _selectedMonth = value.toString().padLeft(2, '0'));
+                }
               },
             ),
           ],
@@ -283,14 +285,14 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Time Card',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -433,7 +435,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
                       }
                     });
                   },
-                  color: MaterialStatePropertyAll(
+                  color: WidgetStatePropertyAll(
                       selected ? Colors.grey[200] : null),
                   cells: [
                     DataCell(Text(dateStr)),

@@ -127,14 +127,14 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'My Team',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -187,7 +187,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                   Shimmer.fromColors(
                                     baseColor: Colors.grey[300]!,
                                     highlightColor: Colors.grey[100]!,
-                                    child: CircleAvatar(
+                                    child: const CircleAvatar(
                                         radius: 20,
                                         backgroundColor: Colors.white),
                                   ),
@@ -221,7 +221,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                   : _error.isNotEmpty
                       ? Center(child: Text('Error: $_error'))
                       : visible.isEmpty
-                          ? Center(child: Text('No team members found'))
+                          ? const Center(child: Text('No team members found'))
                           : RefreshIndicator(
                               onRefresh: () => _fetch(force: true),
                               child: ListView.separated(

@@ -40,14 +40,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
 
   String _getApprovalStatusName(Map<String, dynamic> a) {
     final name = a['approval_status_name'];
-    if (name != null && name.toString().trim().isNotEmpty)
+    if (name != null && name.toString().trim().isNotEmpty) {
       return name.toString();
+    }
     final key = a['approval_status_key'];
     if (key == null) return '-';
     try {
       final k = int.tryParse(key.toString()) ?? -1;
-      if (k != -1 && _approvalStatusNames.containsKey(k))
+      if (k != -1 && _approvalStatusNames.containsKey(k)) {
         return _approvalStatusNames[k]!;
+      }
     } catch (_) {}
     return key.toString();
   }
@@ -109,8 +111,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
             LeaveApplicationsApi().fetchLeaveTypesByEmpKeys(empKeys);
 
         final results = await Future.wait([appsFuture, typesFuture]);
-        final appsRes = results[0] as Map<String, dynamic>;
-        final typesRes = results[1] as Map<String, dynamic>;
+        final appsRes = results[0];
+        final typesRes = results[1];
 
         // Cache leave types result for NewLeaveApplicationScreen
         try {
@@ -189,14 +191,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Leave Application',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -256,7 +258,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
                                       Shimmer.fromColors(
                                         baseColor: Colors.grey[300]!,
                                         highlightColor: Colors.grey[100]!,
-                                        child: CircleAvatar(
+                                        child: const CircleAvatar(
                                             radius: 18,
                                             backgroundColor: Colors.white),
                                       ),
@@ -334,11 +336,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
                                           padding: const EdgeInsets.all(12.0),
                                           child: Row(
                                             children: [
-                                              CircleAvatar(
+                                              const CircleAvatar(
                                                   radius: 18,
                                                   backgroundColor:
                                                       Colors.blueAccent,
-                                                  child: const Icon(
+                                                  child: Icon(
                                                       Icons.event_available,
                                                       color: Colors.white,
                                                       size: 18)),

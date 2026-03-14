@@ -19,13 +19,15 @@ class ManualPunchApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/get_manual_punch_applications_by_emp_keys';
 
-      if (kDebugMode)
+      if (kDebugMode) {
         print(
             'Fetching manual punches for emp_codes=${empCodes.join(',')} (sending as emp_key)');
+      }
 
       final joined = empCodes.join(',');
       // API expects `emp_key` parameter (other APIs use this name).
@@ -99,8 +101,9 @@ class ManualPunchApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl =
           '$cleanUrl/api/validate_and_submit_manual_punch_application';
 

@@ -19,8 +19,9 @@ class GetEmpScopeApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       String cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/emp_scope';
 
       if (kDebugMode) print('Fetching emp scope: $apiUrl with emp_key=$empKey');

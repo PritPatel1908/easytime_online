@@ -14,10 +14,12 @@ class PersistentNavigationLayout extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<PersistentNavigationLayout> createState() => _PersistentNavigationLayoutState();
+  State<PersistentNavigationLayout> createState() =>
+      _PersistentNavigationLayoutState();
 }
 
-class _PersistentNavigationLayoutState extends State<PersistentNavigationLayout> {
+class _PersistentNavigationLayoutState
+    extends State<PersistentNavigationLayout> {
   late int _currentIndex;
   late PageController _pageController;
 
@@ -49,7 +51,8 @@ class _PersistentNavigationLayoutState extends State<PersistentNavigationLayout>
     return Scaffold(
       body: PageView(
         controller: _pageController,
-        physics: const NeverScrollableScrollPhysics(), // Disable swiping between pages
+        physics:
+            const NeverScrollableScrollPhysics(), // Disable swiping between pages
         children: widget.screens,
         onPageChanged: (index) {
           setState(() {

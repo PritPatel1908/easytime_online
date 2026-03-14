@@ -726,8 +726,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final double _scaleFactor =
-        (MediaQuery.of(context).size.width / 360).clamp(0.75, 1.0) as double;
+    final double scaleFactor =
+        (MediaQuery.of(context).size.width / 360).clamp(0.75, 1.0);
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: CustomScrollView(
@@ -747,7 +747,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     child: Text(
                       'Welcome back, ${widget.userName ?? 'User'}',
                       style: TextStyle(
-                        fontSize: 20 * _scaleFactor,
+                        fontSize: 20 * scaleFactor,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF333333),
                       ),
@@ -831,7 +831,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   Text(
                     'Quick Actions',
                     style: TextStyle(
-                      fontSize: 16 * _scaleFactor,
+                      fontSize: 16 * scaleFactor,
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF333333),
                     ),
@@ -844,19 +844,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                         icon: Icons.login,
                         label: 'Check In',
                         color: Colors.green,
-                        scale: _scaleFactor,
+                        scale: scaleFactor,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.logout,
                         label: 'Check Out',
                         color: Colors.red,
-                        scale: _scaleFactor,
+                        scale: scaleFactor,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.access_time,
                         label: 'Time Card',
                         color: Colors.blue,
-                        scale: _scaleFactor,
+                        scale: scaleFactor,
                         onTap: () {
                           String? empKey = _findEmployeeKey();
                           if (empKey != null) {
@@ -883,7 +883,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         icon: Icons.bar_chart,
                         label: 'Reports',
                         color: Colors.purple,
-                        scale: _scaleFactor,
+                        scale: scaleFactor,
                       ),
                     ],
                   ),
@@ -932,8 +932,8 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
-          labelTextStyle: MaterialStatePropertyAll(
-            TextStyle(fontSize: 12 * _scaleFactor),
+          labelTextStyle: WidgetStatePropertyAll(
+            TextStyle(fontSize: 12 * scaleFactor),
           ),
         ),
         child: NavigationBar(
@@ -948,6 +948,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   MaterialPageRoute(
                     builder: (context) => AttendanceHistoryScreen(
                       empKey: empKey,
+                      userData: widget.userData,
+                      userName: widget.userName,
                     ),
                   ),
                 );
@@ -1059,7 +1061,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       color: Colors.white,
                       fontSize: 12 *
                           (MediaQuery.of(context).size.width / 360)
-                              .clamp(0.75, 1.0) as double,
+                              .clamp(0.75, 1.0),
                       fontWeight: FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -1082,7 +1084,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 color: Colors.white,
                                 fontSize: 32 *
                                     (MediaQuery.of(context).size.width / 360)
-                                        .clamp(0.75, 1.0) as double,
+                                        .clamp(0.75, 1.0),
                                 fontWeight: FontWeight.bold,
                               ),
                               maxLines: 1,
@@ -1095,7 +1097,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 color: Colors.white,
                                 fontSize: 30 *
                                     (MediaQuery.of(context).size.width / 360)
-                                        .clamp(0.75, 1.0) as double,
+                                        .clamp(0.75, 1.0),
                                 fontWeight: FontWeight.w600,
                               ),
                               maxLines: 1,
@@ -1116,7 +1118,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                             color: Colors.white,
                             fontSize: 22 *
                                 (MediaQuery.of(context).size.width / 360)
-                                    .clamp(0.75, 1.0) as double,
+                                    .clamp(0.75, 1.0),
                             fontWeight: FontWeight.bold,
                           ),
                           maxLines: 1,
@@ -1131,7 +1133,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       color: Colors.white.withAlpha(204),
                       fontSize: 10 *
                           (MediaQuery.of(context).size.width / 360)
-                              .clamp(0.75, 1.0) as double,
+                              .clamp(0.75, 1.0),
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -1181,8 +1183,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       onTapUp: (_) => _cancelLongHold(),
       onTapCancel: () => _cancelLongHold(),
       child: DragTarget<String>(
-        onWillAccept: (data) => data != null && data != id,
-        onAccept: (sourceId) {
+        onWillAcceptWithDetails: (details) =>
+            details.data != null && details.data != id,
+        onAcceptWithDetails: (details) {
+          final sourceId = details.data;
           // swap positions
           final from = _statOrder.indexOf(sourceId);
           final to = _statOrder.indexOf(id);
@@ -1211,11 +1215,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: card,
               ),
               if (_isReorderMode && _activeDragItem == id)
-                Positioned(
+                const Positioned(
                   top: 8,
                   right: 8,
-                  child:
-                      const Icon(Icons.drag_indicator, color: Colors.white70),
+                  child: Icon(Icons.drag_indicator, color: Colors.white70),
                 ),
             ],
           );
@@ -1652,7 +1655,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '$value (${formattedPercentage}%)',
+                      '$value ($formattedPercentage%)',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -1696,9 +1699,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
+                const Expanded(
                   child: Row(
-                    children: const [
+                    children: [
                       Icon(Icons.pie_chart, color: Colors.white, size: 20),
                       SizedBox(width: 8),
                       Expanded(

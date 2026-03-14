@@ -51,8 +51,9 @@ class TodayPunchesApi {
     try {
       final baseUrl = await getBaseApiUrl();
       String cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
 
       final apiUrl = '$cleanUrl/api/today_punches';
 
@@ -62,8 +63,9 @@ class TodayPunchesApi {
 
       // Try form-encoded request first
       try {
-        if (kDebugMode)
+        if (kDebugMode) {
           print('Trying form-encoded request with emp_key=$empKey');
+        }
         final formResponse = await http.post(
           Uri.parse(apiUrl),
           headers: {

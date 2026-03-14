@@ -101,8 +101,9 @@ class _ApproverScreenState extends State<ApproverScreen>
             bool changed = _requests.length != newRequests.length;
             if (!changed) {
               for (int i = 0; i < newRequests.length && !changed; i++) {
-                if (jsonEncode(_requests[i]) != jsonEncode(newRequests[i]))
+                if (jsonEncode(_requests[i]) != jsonEncode(newRequests[i])) {
                   changed = true;
+                }
               }
             }
 
@@ -163,14 +164,14 @@ class _ApproverScreenState extends State<ApproverScreen>
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'My Approver',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -217,8 +218,8 @@ class _ApproverScreenState extends State<ApproverScreen>
                   Shimmer.fromColors(
                     baseColor: Colors.grey[300]!,
                     highlightColor: Colors.grey[100]!,
-                    child:
-                        CircleAvatar(radius: 24, backgroundColor: Colors.white),
+                    child: const CircleAvatar(
+                        radius: 24, backgroundColor: Colors.white),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -308,12 +309,12 @@ class _ApproverScreenState extends State<ApproverScreen>
       );
     }
 
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: const [
+          children: [
             Icon(Icons.checklist, size: 56, color: Colors.grey),
             SizedBox(height: 12),
             Text('No pending approvals', style: TextStyle(fontSize: 16)),

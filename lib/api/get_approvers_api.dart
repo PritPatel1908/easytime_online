@@ -19,8 +19,9 @@ class GetApproversApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       String cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/get_approvers';
 
       if (kDebugMode) {

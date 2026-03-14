@@ -8,7 +8,8 @@ import 'package:easytime_online/api/leave_transactions_api.dart';
 
 class MyLeaveBalanceScreen extends StatefulWidget {
   final String empKey;
-  const MyLeaveBalanceScreen({Key? key, required this.empKey}) : super(key: key);
+  const MyLeaveBalanceScreen({Key? key, required this.empKey})
+      : super(key: key);
 
   @override
   State<MyLeaveBalanceScreen> createState() => _MyLeaveBalanceScreenState();
@@ -45,11 +46,13 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
       final raw = prefs.getString(key);
       if (raw != null && raw.isNotEmpty) {
         final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic> && decoded.containsKey('leave_balance')) {
+        if (decoded is Map<String, dynamic> &&
+            decoded.containsKey('leave_balance')) {
           final list = decoded['leave_balance'] as List<dynamic>;
           setState(() {
             _fyears = list
-                .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map))
+                .map<Map<String, dynamic>>(
+                    (e) => Map<String, dynamic>.from(e as Map))
                 .toList();
             _rebuildTypes();
             _isLoading = true; // still show loading until fresh fetch
@@ -71,8 +74,10 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
       if (res['success'] == true && res['data'] != null) {
         final data = res['data'] as Map<String, dynamic>;
         final list = data['leave_balance'] as List<dynamic>? ?? [];
-        final parsed =
-            list.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
+        final parsed = list
+            .map<Map<String, dynamic>>(
+                (e) => Map<String, dynamic>.from(e as Map))
+            .toList();
 
         setState(() {
           _fyears = parsed;
@@ -103,12 +108,14 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
     final Map<String, List<Map<String, dynamic>>> m = {};
     for (final fy in _fyears) {
       final fcode = fy['fyear_code'] ?? '';
-      final fyearKey = fy['financial_year_key'] ?? fy['fyear_key'] ?? null;
+      final fyearKey = fy['financial_year_key'] ?? fy['fyear_key'];
       final types = (fy['leave_types'] as List<dynamic>?) ?? [];
       for (final t in types) {
         final type = Map<String, dynamic>.from(t as Map);
         final code = (type['leave_type_code'] ?? '').toString();
-        m.putIfAbsent(code, () => []).add({'fyear_code': fcode, 'fyear_key': fyearKey, 'type': type});
+        m
+            .putIfAbsent(code, () => [])
+            .add({'fyear_code': fcode, 'fyear_key': fyearKey, 'type': type});
       }
     }
     _types = m;
@@ -130,15 +137,17 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'My Leave Balance',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -184,13 +193,17 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
                                 Shimmer.fromColors(
                                   baseColor: Colors.grey[300]!,
                                   highlightColor: Colors.grey[100]!,
-                                  child: Container(height: 14, color: Colors.white),
+                                  child: Container(
+                                      height: 14, color: Colors.white),
                                 ),
                                 const SizedBox(height: 8),
                                 Shimmer.fromColors(
                                   baseColor: Colors.grey[300]!,
                                   highlightColor: Colors.grey[100]!,
-                                  child: Container(height: 12, width: 120, color: Colors.white),
+                                  child: Container(
+                                      height: 12,
+                                      width: 120,
+                                      color: Colors.white),
                                 ),
                               ],
                             ))
@@ -208,19 +221,27 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
                       children: [
                         ..._types.entries.map((entry) {
                           final typeCode = entry.key;
-                          final rows = entry.value; // list of {fyear_code, type, fyear_key}
+                          final rows = entry
+                              .value; // list of {fyear_code, type, fyear_key}
                           return InkWell(
                             onTap: () {
                               if (rows.isNotEmpty) {
-                                dynamic fyearKey = rows.first['fyear_key'] ?? rows.first['financial_year_key'];
+                                dynamic fyearKey = rows.first['fyear_key'] ??
+                                    rows.first['financial_year_key'];
                                 if (fyearKey == null) {
                                   final searchCode = typeCode;
                                   for (final fy in _fyears) {
-                                    final types = (fy['leave_types'] as List<dynamic>?) ?? [];
+                                    final types =
+                                        (fy['leave_types'] as List<dynamic>?) ??
+                                            [];
                                     for (final t in types) {
-                                      final map = Map<String, dynamic>.from(t as Map);
-                                      if ((map['leave_type_code'] ?? '').toString() == searchCode) {
-                                        fyearKey = fy['financial_year_key'] ?? fy['fyear_key'];
+                                      final map =
+                                          Map<String, dynamic>.from(t as Map);
+                                      if ((map['leave_type_code'] ?? '')
+                                              .toString() ==
+                                          searchCode) {
+                                        fyearKey = fy['financial_year_key'] ??
+                                            fy['fyear_key'];
                                         break;
                                       }
                                     }
@@ -228,7 +249,8 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
                                   }
                                 }
 
-                                final type = Map<String, dynamic>.from(rows.first['type'] as Map);
+                                final type = Map<String, dynamic>.from(
+                                    rows.first['type'] as Map);
                                 final leaveTypeKey = type['leave_type_key'];
                                 Navigator.push(
                                   context,
@@ -249,7 +271,8 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         Expanded(
                                           child: Text(
@@ -263,15 +286,25 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
                                         ),
                                         const SizedBox(width: 8),
                                         Builder(builder: (_) {
-                                          final first = rows.isNotEmpty ? rows.first['type'] as Map<String, dynamic>? : null;
-                                          final desc = (first != null && (first['leave_type_description'] ?? first['description']) != null)
-                                              ? (first['leave_type_description'] ?? first['description']).toString()
+                                          final first = rows.isNotEmpty
+                                              ? rows.first['type']
+                                                  as Map<String, dynamic>?
+                                              : null;
+                                          final desc = (first != null &&
+                                                  (first['leave_type_description'] ??
+                                                          first[
+                                                              'description']) !=
+                                                      null)
+                                              ? (first['leave_type_description'] ??
+                                                      first['description'])
+                                                  .toString()
                                               : '';
                                           return Expanded(
                                             child: Text(
                                               desc.isNotEmpty ? desc : '-',
                                               textAlign: TextAlign.right,
-                                              style: const TextStyle(color: Colors.grey),
+                                              style: const TextStyle(
+                                                  color: Colors.grey),
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           );
@@ -281,11 +314,16 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
                                     const SizedBox(height: 12),
                                     ...rows.map<Widget>((r) {
                                       final fy = r['fyear_code'] ?? '';
-                                      final type = Map<String, dynamic>.from(r['type'] as Map);
+                                      final type = Map<String, dynamic>.from(
+                                          r['type'] as Map);
                                       return Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(fy.toString(), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                          Text(fy.toString(),
+                                              style: const TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 12)),
                                           const SizedBox(height: 6),
                                           _buildLeaveTypeRow(type),
                                           const SizedBox(height: 10),
@@ -335,7 +373,8 @@ class _MyLeaveBalanceScreenState extends State<MyLeaveBalanceScreen>
             ),
             Text(
               keepsBalance ? balance.toString() : utilized.toString(),
-              style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -349,10 +388,16 @@ class LeaveTransactionsScreen extends StatefulWidget {
   final dynamic financialYearKey;
   final dynamic leaveTypeKey;
 
-  const LeaveTransactionsScreen({Key? key, required this.empKey, required this.financialYearKey, required this.leaveTypeKey}) : super(key: key);
+  const LeaveTransactionsScreen(
+      {Key? key,
+      required this.empKey,
+      required this.financialYearKey,
+      required this.leaveTypeKey})
+      : super(key: key);
 
   @override
-  State<LeaveTransactionsScreen> createState() => _LeaveTransactionsScreenState();
+  State<LeaveTransactionsScreen> createState() =>
+      _LeaveTransactionsScreenState();
 }
 
 class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
@@ -381,7 +426,10 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
         final data = res['data'] as Map<String, dynamic>;
         final list = data['transactions'] as List<dynamic>? ?? [];
         setState(() {
-          _transactions = list.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
+          _transactions = list
+              .map<Map<String, dynamic>>(
+                  (e) => Map<String, dynamic>.from(e as Map))
+              .toList();
           _isLoading = false;
         });
       } else {
@@ -414,15 +462,17 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Transactions',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -451,7 +501,12 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
                             Shimmer.fromColors(
                               baseColor: Colors.grey[300]!,
                               highlightColor: Colors.grey[100]!,
-                              child: Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8))),
+                              child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8))),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -461,13 +516,17 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
                                   Shimmer.fromColors(
                                     baseColor: Colors.grey[300]!,
                                     highlightColor: Colors.grey[100]!,
-                                    child: Container(height: 14, color: Colors.white),
+                                    child: Container(
+                                        height: 14, color: Colors.white),
                                   ),
                                   const SizedBox(height: 8),
                                   Shimmer.fromColors(
                                     baseColor: Colors.grey[300]!,
                                     highlightColor: Colors.grey[100]!,
-                                    child: Container(height: 12, width: 120, color: Colors.white),
+                                    child: Container(
+                                        height: 12,
+                                        width: 120,
+                                        color: Colors.white),
                                   ),
                                 ],
                               ),
@@ -483,13 +542,16 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
                     child: _transactions.isEmpty
                         ? ListView(
                             padding: const EdgeInsets.all(16),
-                            children: const [Center(child: Text('No transactions found'))],
+                            children: const [
+                              Center(child: Text('No transactions found'))
+                            ],
                           )
                         : ListView.separated(
                             padding: const EdgeInsets.all(16),
                             physics: const AlwaysScrollableScrollPhysics(),
                             itemCount: _transactions.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final t = _transactions[index];
                               return _buildTransactionTile(t);
@@ -504,7 +566,7 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
     final kind = t['kind'] ?? '';
     final date = t['date'] ?? '';
     // Build a nicer card for transaction / opening
-    final cardPadding = const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0);
+    const cardPadding = EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0);
     if (kind == 'opening') {
       final opening = t['opening'] ?? '-';
       return Card(
@@ -521,13 +583,17 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Opening', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text('Opening',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 4),
-                    Text('Date: $date', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text('Date: $date',
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 12)),
                   ],
                 ),
               ),
-              Text(opening.toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(opening.toString(),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -535,13 +601,22 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
     }
 
     final data = t['data'] as Map<String, dynamic>?;
-    final credit = data != null ? (data['credit_leave_days'] ?? data['credit'] ?? '-') : '-';
-    final debit = data != null ? (data['debit_leave_days'] ?? data['debit'] ?? '-') : '-';
+    final credit = data != null
+        ? (data['credit_leave_days'] ?? data['credit'] ?? '-')
+        : '-';
+    final debit =
+        data != null ? (data['debit_leave_days'] ?? data['debit'] ?? '-') : '-';
     final entityRaw = data != null ? (data['entity_name'] ?? '') : '';
     final entity = _formatEntity(entityRaw);
     final effective = data != null ? (data['effective_date'] ?? date) : date;
-    final isApproved = data != null ? ((data['is_approved'] ?? 0).toString() == '1' || data['is_approved'] == true) : false;
-    final isRejected = data != null ? ((data['is_rejected'] ?? 0).toString() == '1' || data['is_rejected'] == true) : false;
+    final isApproved = data != null
+        ? ((data['is_approved'] ?? 0).toString() == '1' ||
+            data['is_approved'] == true)
+        : false;
+    final isRejected = data != null
+        ? ((data['is_rejected'] ?? 0).toString() == '1' ||
+            data['is_rejected'] == true)
+        : false;
 
     return Card(
       child: Padding(
@@ -549,30 +624,42 @@ class _LeaveTransactionsScreenState extends State<LeaveTransactionsScreen> {
         child: Row(
           children: [
             CircleAvatar(
-              backgroundColor: isApproved ? Colors.green : (isRejected ? Colors.red : Colors.orange),
-              child: Icon(kind == 'transaction' ? Icons.swap_horiz : Icons.info, color: Colors.white, size: 18),
+              backgroundColor: isApproved
+                  ? Colors.green
+                  : (isRejected ? Colors.red : Colors.orange),
+              child: Icon(kind == 'transaction' ? Icons.swap_horiz : Icons.info,
+                  color: Colors.white, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(entity.toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(entity.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  Text('Date: $effective', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text('Date: $effective',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('Credit: $credit', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Credit: $credit',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text('Debit: $debit', style: const TextStyle(color: Colors.grey)),
+                Text('Debit: $debit',
+                    style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 6),
-                if (isApproved) const Text('Approved', style: TextStyle(color: Colors.green, fontSize: 12))
-                else if (isRejected) const Text('Rejected', style: TextStyle(color: Colors.red, fontSize: 12))
-                else const SizedBox.shrink(),
+                if (isApproved)
+                  const Text('Approved',
+                      style: TextStyle(color: Colors.green, fontSize: 12))
+                else if (isRejected)
+                  const Text('Rejected',
+                      style: TextStyle(color: Colors.red, fontSize: 12))
+                else
+                  const SizedBox.shrink(),
               ],
             ),
           ],

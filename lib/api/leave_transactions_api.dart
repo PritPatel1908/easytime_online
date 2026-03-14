@@ -23,13 +23,15 @@ class LeaveTransactionsApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/leave_transactions';
 
-      if (kDebugMode)
+      if (kDebugMode) {
         print(
             'Fetching leave transactions: $apiUrl emp_key=$empKey, fy=$financialYearKey, lt=$leaveTypeKey');
+      }
 
       final bodyMap = {
         'emp_key': empKey,
@@ -102,5 +104,4 @@ class LeaveTransactionsApi {
       return {'success': false, 'message': e.toString()};
     }
   }
-  
 }

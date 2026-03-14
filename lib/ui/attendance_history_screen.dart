@@ -3,16 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart'; // Added for kDebugMode
 import 'package:easytime_online/api/attendance_history_api.dart';
-import 'package:easytime_online/custom_page_transitions.dart';
+import 'package:easytime_online/ui/dashboard_screen.dart';
+import 'package:easytime_online/main_navigation.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   final String empKey;
   final bool initialShowAsTable;
+  final Map<String, dynamic>? userData;
+  final String? userName;
 
   const AttendanceHistoryScreen({
     super.key,
     required this.empKey,
     this.initialShowAsTable = false,
+    this.userData,
+    this.userName,
   });
 
   @override
@@ -114,6 +119,17 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   void _refreshAttendanceData() {
     setState(() {
       _isLoading = true;
+    });
+
+    // Clear cached data for a guaranteed fresh fetch
+    try {
+      _attendanceHistoryApi.clearCache();
+    } catch (_) {}
+
+    // Reset local data state so UI shows loading properly
+    setState(() {
+      _attendanceData = null;
+      _errorMessage = '';
     });
 
     _attendanceHistoryApi.fetchAttendanceHistory(
@@ -287,19 +303,31 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text('Attendance History'),
-        actions: [
-          // Toggle view button
-          IconButton(
-            icon: Icon(_showAsTable ? Icons.calendar_month : Icons.table_rows),
-            onPressed: _toggleViewMode,
-            tooltip: _showAsTable ? 'Show Calendar' : 'Show Table',
+        elevation: 0,
+        backgroundColor: const Color(0xFF1E3C72),
+        titleSpacing: 0,
+        automaticallyImplyLeading: false,
+        title: const Padding(
+          padding: EdgeInsets.only(left: 12.0),
+          child: Text(
+            'Attendance History',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshAttendanceData,
-            tooltip: 'Refresh',
+        ),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: _refreshAttendanceData,
+              tooltip: 'Refresh',
+            ),
           ),
         ],
       ),
@@ -320,6 +348,69 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                           : _showAsTable
                               ? _buildAttendanceTable()
                               : _buildAttendanceCalendar(),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: NavigationBarTheme(
+        data: const NavigationBarThemeData(
+          labelTextStyle: MaterialStatePropertyAll(TextStyle(fontSize: 12)),
+        ),
+        child: NavigationBar(
+          selectedIndex: 1,
+          onDestinationSelected: (index) {
+            if (index == 1) return; // already on Attendance
+
+            if (index == 0) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => DashboardScreen(
+                    empKey: widget.empKey,
+                    userData: widget.userData,
+                    userName: widget.userName,
+                  ),
+                ),
+              );
+              return;
+            }
+
+            // For other tabs open the main navigation on that tab
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MainNavigation(
+                  empKey: widget.empKey,
+                  initialIndex: index,
+                  userData: widget.userData,
+                  userName: widget.userName,
+                ),
+              ),
+            );
+          },
+          backgroundColor: Colors.white,
+          elevation: 0,
+          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+              selectedIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.access_time_outlined),
+              selectedIcon: Icon(Icons.access_time),
+              label: 'Attendance',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.task_outlined),
+              selectedIcon: Icon(Icons.task),
+              label: 'Tasks',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
             ),
           ],
         ),

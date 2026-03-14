@@ -145,7 +145,7 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
                                       right: -2,
                                       bottom: -2,
                                       child: Container(
-                                        decoration: BoxDecoration(
+                                        decoration: const BoxDecoration(
                                           color: Colors.white,
                                           shape: BoxShape.circle,
                                         ),
@@ -166,10 +166,11 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
                                 style: const TextStyle(fontSize: 14),
                               ),
                               onTap: () => setState2(() {
-                                if (selected)
+                                if (selected) {
                                   temp.remove(key);
-                                else
+                                } else {
                                   temp.add(key);
+                                }
                               }),
                             ),
                           );
@@ -346,10 +347,11 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
     );
     if (picked != null) {
       setState(() {
-        if (isFrom)
+        if (isFrom) {
           _fromDate = picked;
-        else
+        } else {
           _toDate = picked;
+        }
       });
     }
   }
@@ -493,14 +495,14 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'New Leave Application',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -755,9 +757,9 @@ class _NewLeaveApplicationScreenState extends State<NewLeaveApplicationScreen> {
                           minimumSize: const Size.fromHeight(42)),
                       onPressed: _isSubmitting ? null : _submit,
                       child: _isSubmitting
-                          ? Row(
+                          ? const Row(
                               mainAxisSize: MainAxisSize.min,
-                              children: const [
+                              children: [
                                 SizedBox(
                                   width: 16,
                                   height: 16,

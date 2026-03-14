@@ -252,7 +252,8 @@ class MyApp extends StatelessWidget {
               overscroll: false,
             ),
             child: MediaQuery(
-              data: mq.copyWith(textScaleFactor: effectiveTextScale),
+              data: mq.copyWith(
+                  textScaler: TextScaler.linear(effectiveTextScale)),
               child: child!,
             ),
           ),

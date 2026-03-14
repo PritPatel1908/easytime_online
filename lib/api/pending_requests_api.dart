@@ -20,13 +20,15 @@ class PendingRequestsApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/pending_requests';
 
-      if (kDebugMode)
+      if (kDebugMode) {
         print(
             'Fetching pending requests: emp_key=$empKey entity_name=$entityName');
+      }
 
       final bodyMap = {'emp_key': empKey, 'entity_name': entityName};
 

@@ -127,7 +127,7 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
       if (dt != null) {
         final hh = dt.hour.toString().padLeft(2, '0');
         final mm = dt.minute.toString().padLeft(2, '0');
-        return hh + ':' + mm;
+        return '$hh:$mm';
       }
     } catch (_) {}
     final m = RegExp(r'(\d{2}:\d{2})');
@@ -158,14 +158,14 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
               onPressed: () => Navigator.of(context).pop(),
             ),
             const SizedBox(width: 6),
-            Flexible(
+            const Flexible(
               child: Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: EdgeInsets.only(right: 8.0),
                 child: Text(
                   'Manual Punch',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600),
@@ -216,10 +216,10 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(12),
                                   child: Row(children: [
-                                    CircleAvatar(
+                                    const CircleAvatar(
                                         radius: 18,
                                         backgroundColor: Colors.blueAccent,
-                                        child: const Icon(Icons.edit,
+                                        child: Icon(Icons.edit,
                                             color: Colors.white, size: 18)),
                                     const SizedBox(width: 12),
                                     Expanded(
@@ -275,11 +275,12 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                                   if (dateRaw.isNotEmpty) {
                                     try {
                                       final dt = DateTime.tryParse(dateRaw);
-                                      if (dt != null)
+                                      if (dt != null) {
                                         date =
                                             '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-                                      else
+                                      } else {
                                         date = dateRaw.split('T').first;
+                                      }
                                     } catch (_) {
                                       date = dateRaw.split('T').first;
                                     }
@@ -312,9 +313,9 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                                               '';
                                           final mbr = RegExp(r'\[([^\]]+)\]')
                                               .firstMatch(d);
-                                          if (mbr != null)
+                                          if (mbr != null) {
                                             displays.add(mbr.group(1)!);
-                                          else if (d.trim().isNotEmpty)
+                                          } else if (d.trim().isNotEmpty)
                                             displays.add(d.trim());
                                         } catch (_) {}
                                       }
@@ -356,9 +357,9 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                                                 final mbr =
                                                     RegExp(r'\[([^\]]+)\]')
                                                         .firstMatch(d);
-                                                if (mbr != null)
+                                                if (mbr != null) {
                                                   displays.add(mbr.group(1)!);
-                                                else if (d.trim().isNotEmpty)
+                                                } else if (d.trim().isNotEmpty)
                                                   displays.add(d.trim());
                                               } catch (_) {}
                                             }
