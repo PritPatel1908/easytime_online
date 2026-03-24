@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Domain-specific config: explicitly allow cleartext for the attendance host -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">att.easytimeonline.in</domain>
+    </domain-config>
+
+    <!-- Keep a permissive base-config as a safe fallback for older devices -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- Trust system CA certificates -->
+            <certificates src="system" />
+            <!-- Also trust user-installed CA certificates (for dev environments) -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

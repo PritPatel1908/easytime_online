@@ -43,8 +43,60 @@ class TodayPunchesApi {
 
   static Future<String> getBaseApiUrl() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? baseUrl = prefs.getString('base_api_url');
-    return baseUrl ?? 'http://192.168.1.52:9095';
+    String? baseUrl = prefs.getString('base_api_url');
+
+    // Fallback candidate list
+    const String localDefault = 'http://192.168.1.52:9095';
+    final List<String> candidates = [];
+
+    if (baseUrl != null && baseUrl.trim().isNotEmpty) {
+      // Ensure scheme
+      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        candidates.add('http://$baseUrl');
+        candidates.add('https://$baseUrl');
+      } else {
+        candidates.add(baseUrl);
+        // add alternate scheme
+        if (baseUrl.startsWith('http://')) {
+          candidates.add(baseUrl.replaceFirst('http://', 'https://'));
+        } else if (baseUrl.startsWith('https://')) {
+          candidates.add(baseUrl.replaceFirst('https://', 'http://'));
+        }
+      }
+    }
+
+    // Add known defaults
+    candidates.add(localDefault);
+
+    // Try each candidate and return the first reachable one
+    for (var candidate in candidates) {
+      try {
+        var clean = candidate;
+        if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
+        final probeUrl = '$clean/';
+        if (kDebugMode) print('Probing base API URL: $probeUrl');
+        final resp = await http
+            .get(Uri.parse(probeUrl))
+            .timeout(const Duration(seconds: 3));
+        if (kDebugMode) {
+          print('Probe status for $candidate: ${resp.statusCode}');
+        }
+        // Accept any response (200-499) as indication host resolved; prefer 200
+        if (resp.statusCode >= 200 && resp.statusCode < 500) {
+          // Save working URL (without trailing slash)
+          final saveUrl = clean;
+          await prefs.setString('base_api_url', saveUrl);
+          return saveUrl;
+        }
+      } catch (e) {
+        if (kDebugMode) print('Probe failed for $candidate: $e');
+        // continue to next candidate
+      }
+    }
+
+    // If none reachable, return original or local default
+    if (baseUrl != null && baseUrl.trim().isNotEmpty) return baseUrl;
+    return localDefault;
   }
 
   Future<Map<String, dynamic>> fetchTodayPunches(String empKey) async {

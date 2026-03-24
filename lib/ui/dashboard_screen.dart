@@ -11,9 +11,11 @@ import 'package:easytime_online/ui/my_leave_balance_screen.dart';
 import 'package:easytime_online/ui/leave_application_screen.dart';
 import 'package:easytime_online/ui/manual_punch_list_screen.dart';
 import 'package:easytime_online/ui/pending_request_screen.dart';
+import 'package:easytime_online/ui/check_in_out_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
 import 'package:easytime_online/ui/time_card_screen.dart';
+import 'package:easytime_online/ui/my_punches_screen.dart';
 import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:easytime_online/data_sync_service.dart';
 import 'package:easytime_online/data_storage_service.dart';
@@ -845,12 +847,105 @@ class _DashboardScreenState extends State<DashboardScreen>
                         label: 'Check In',
                         color: Colors.green,
                         scale: scaleFactor,
+                        onTap: () async {
+                          String? empKey = _findEmployeeKey();
+                          if (empKey != null) {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CheckInOutScreen(
+                                  headerTitle: 'Check In',
+                                  empKey: empKey,
+                                ),
+                              ),
+                            );
+                            // If the check-in screen popped with emp_key, refresh today's punches
+                            if (result is Map && result['emp_key'] != null) {
+                              final res =
+                                  await _todayPunchesApi.fetchTodayPunches(
+                                      result['emp_key'].toString());
+                              if (mounted && res['success'] == true) {
+                                setState(() {
+                                  _inPunch = res['in_punch']?.toString() ?? '';
+                                  _outPunch =
+                                      res['out_punch']?.toString() ?? '';
+                                });
+                              }
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Employee key not found.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
                       ),
                       _buildQuickActionButton(
                         icon: Icons.logout,
                         label: 'Check Out',
                         color: Colors.red,
                         scale: scaleFactor,
+                        onTap: () async {
+                          String? empKey = _findEmployeeKey();
+                          if (empKey != null) {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CheckInOutScreen(
+                                  headerTitle: 'Check Out',
+                                  empKey: empKey,
+                                ),
+                              ),
+                            );
+                            if (result is Map && result['emp_key'] != null) {
+                              final res =
+                                  await _todayPunchesApi.fetchTodayPunches(
+                                      result['emp_key'].toString());
+                              if (mounted && res['success'] == true) {
+                                setState(() {
+                                  _inPunch = res['in_punch']?.toString() ?? '';
+                                  _outPunch =
+                                      res['out_punch']?.toString() ?? '';
+                                });
+                              }
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Employee key not found.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      _buildQuickActionButton(
+                        icon: Icons.history,
+                        label: 'My Punches',
+                        color: Colors.teal,
+                        scale: scaleFactor,
+                        onTap: () {
+                          String? empKey = _findEmployeeKey();
+                          if (empKey != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    MyPunchesScreen(empKey: empKey),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Employee key not found. Cannot load punches.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
                       ),
                       _buildQuickActionButton(
                         icon: Icons.access_time,
@@ -878,12 +973,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                             );
                           }
                         },
-                      ),
-                      _buildQuickActionButton(
-                        icon: Icons.bar_chart,
-                        label: 'Reports',
-                        color: Colors.purple,
-                        scale: scaleFactor,
                       ),
                     ],
                   ),
