@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:easytime_online/api/today_punches_api.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:camera/camera.dart';
 import 'package:easytime_online/ui/dashboard_screen.dart';
 import 'package:encrypt/encrypt.dart' as encrypt_pkg;
 import 'package:http/http.dart' as http;
@@ -33,6 +34,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   File? _photoFile;
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _remarkController = TextEditingController();
@@ -65,6 +69,10 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
 
     // Fetch default location and fill into location field
     _fetchDefaultLocation();
+    // Open front camera (selfie) after first frame so user can take photo immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initCamera();
+    });
   }
 
   Future<void> _fetchDefaultLocation() async {
@@ -93,6 +101,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
 
   @override
   void dispose() {
+    try {
+      _cameraController?.dispose();
+    } catch (_) {}
     _punchSubscription?.cancel();
     _locationController.dispose();
     _remarkController.dispose();
@@ -105,17 +116,21 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
   }
 
   Future<void> _performCheckIn() async {
+    await _captureFromPreviewIfNeeded();
     await _submitPunch(punchTypeKey: 1, isOut: 0);
   }
 
   Future<void> _performCheckOut() async {
+    await _captureFromPreviewIfNeeded();
     await _submitPunch(punchTypeKey: 2, isOut: 1);
   }
 
   Future<void> _capturePhoto() async {
     try {
-      final XFile? picked =
-          await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+      final XFile? picked = await _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 80,
+          preferredCameraDevice: CameraDevice.front);
       if (picked != null) {
         setState(() {
           _photoFile = File(picked.path);
@@ -126,6 +141,57 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
       if (kDebugMode) print('Error capturing photo: $e');
       _showMessage('Failed to capture photo');
     }
+  }
+
+  // Initialize front camera for live preview embedded in page.
+  Future<void> _initCamera() async {
+    try {
+      // small delay to ensure UI is ready
+      await Future.delayed(const Duration(milliseconds: 150));
+      // get available cameras
+      _cameras = await availableCameras();
+      // prefer front camera
+      CameraDescription? front;
+      for (var cam in _cameras!) {
+        if (cam.lensDirection == CameraLensDirection.front) {
+          front = cam;
+          break;
+        }
+      }
+      final camToUse = front ?? (_cameras!.isNotEmpty ? _cameras!.first : null);
+      if (camToUse == null) return;
+      _cameraController = CameraController(camToUse, ResolutionPreset.medium,
+          enableAudio: false);
+      await _cameraController!.initialize();
+      if (!mounted) return;
+      setState(() {
+        _isCameraInitialized = true;
+      });
+    } catch (e) {
+      if (kDebugMode) print('Camera init error: $e');
+      // leave fallback to image_picker
+      setState(() {
+        _isCameraInitialized = false;
+      });
+    }
+  }
+
+  // Capture current frame from preview (preferred) or fallback to picker
+  Future<void> _captureFromPreviewIfNeeded() async {
+    if (_photoFile != null) return;
+    try {
+      if (_cameraController != null && _isCameraInitialized) {
+        final XFile xf = await _cameraController!.takePicture();
+        setState(() {
+          _photoFile = File(xf.path);
+        });
+        return;
+      }
+    } catch (e) {
+      if (kDebugMode) print('Preview capture failed: $e');
+    }
+    // fallback to image picker flow
+    await _capturePhoto();
   }
 
   // Try to extract IN/OUT from various API response shapes
@@ -523,11 +589,11 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
                             alignment: Alignment.center,
                             children: [
                               Container(
-                                width: 120,
-                                height: 120,
+                                width: 150,
+                                height: 150,
                                 decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
                                   color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.black.withAlpha(12),
@@ -536,10 +602,20 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
                                     ),
                                   ],
                                 ),
-                                child: ClipOval(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
                                   child: _photoFile == null
-                                      ? Icon(Icons.camera_alt,
-                                          size: 44, color: Colors.grey[700])
+                                      ? (_isCameraInitialized &&
+                                              _cameraController != null
+                                          ? SizedBox(
+                                              width: 150,
+                                              height: 150,
+                                              child: CameraPreview(
+                                                  _cameraController!),
+                                            )
+                                          : Icon(Icons.camera_alt,
+                                              size: 56,
+                                              color: Colors.grey[700]))
                                       : Image.file(_photoFile!,
                                           fit: BoxFit.cover),
                                 ),

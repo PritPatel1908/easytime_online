@@ -12,6 +12,7 @@ import 'package:easytime_online/ui/leave_application_screen.dart';
 import 'package:easytime_online/ui/manual_punch_list_screen.dart';
 import 'package:easytime_online/ui/pending_request_screen.dart';
 import 'package:easytime_online/ui/check_in_out_screen.dart';
+import 'package:easytime_online/ui/manual_attendance_list_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
 import 'package:easytime_online/ui/time_card_screen.dart';
@@ -27,11 +28,16 @@ import 'package:easytime_online/main/main.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String? userName;
+  final String? emp_code;
   final Map<String, dynamic>? userData;
   final String empKey;
 
   const DashboardScreen(
-      {super.key, this.userName, this.userData, required this.empKey});
+      {super.key,
+      this.userName,
+      this.emp_code,
+      this.userData,
+      required this.empKey});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -198,6 +204,42 @@ class _DashboardScreenState extends State<DashboardScreen>
         year: currentYear,
       );
     }
+  }
+
+  // Logout handler: clears user prefs and returns to login (HomeScreen)
+  Future<void> _performLogout() async {
+    final should = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (should != true) return;
+
+    // Preserve saved session data. Do NOT clear SharedPreferences here
+    // to avoid flushing saved credentials or other session data.
+    // If you need to remove specific keys on logout, do so explicitly.
+
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const HomeScreen(title: 'EasyTime Online'),
+      ),
+      (route) => false,
+    );
   }
 
   // Set up work hours background services
@@ -718,7 +760,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Stop periodic updates
     _monthlyWorkHoursApi.stopPeriodicUpdates();
     _todayPunchesApi.stopPeriodicUpdates();
-    _statusPieChartApi.dispose();
+    // Do not dispose the singleton StatusPieChartApi here — only stop its timer.
+    // Disposing the singleton closes its stream controller which prevents
+    // new DashboardScreen instances from listening after a logout/login.
+    _statusPieChartApi.stopPeriodicUpdates();
 
     _mainScrollController.dispose();
     _tabController.dispose();
@@ -730,6 +775,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final double scaleFactor =
         (MediaQuery.of(context).size.width / 360).clamp(0.75, 1.0);
+    // Prefer explicit emp_code if provided, else fallback to userData['emp_code'], then empKey
+    final String displayEmpCode = widget.emp_code ??
+        widget.userData?['emp_code']?.toString() ??
+        widget.empKey;
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: CustomScrollView(
@@ -747,7 +796,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   Expanded(
                     child: Text(
-                      'Welcome back, ${widget.userName ?? 'User'}',
+                      '${widget.userName ?? ''} ($displayEmpCode)',
                       style: TextStyle(
                         fontSize: 20 * scaleFactor,
                         fontWeight: FontWeight.bold,
@@ -759,28 +808,47 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(13),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'logout') {
+                        _performLogout();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'logout',
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout, color: Colors.black54),
+                            SizedBox(width: 8),
+                            Text('Logout'),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Theme.of(context).primaryColor,
-                      child: Text(
-                        widget.userName?.isNotEmpty == true
-                            ? widget.userName![0].toUpperCase()
-                            : 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                      ),
+                    ],
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(13),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Theme.of(context).primaryColor,
+                        child: Text(
+                          widget.userName?.isNotEmpty == true
+                              ? widget.userName![0].toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -814,7 +882,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           // Quick Actions
           SliverToBoxAdapter(
             child: Container(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 20),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -1682,11 +1750,49 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Create sections and legends with random colors
     int colorIndex = 0;
-    statusMap.forEach((key, value) {
-      // Generate random color based on index and status code
-      final color = getRandomColor(colorIndex++, key);
 
-      // Convert value to double based on its type
+    // Preferred ordering: present, absent, pa, ap, week off, wop, holiday, then others
+    final preferredOrderCodes = ['PP', 'AA', 'PA', 'AP', 'WO', 'WOP', 'HO'];
+    final preferredOrderLabels = [
+      'present',
+      'absent',
+      'pa',
+      'ap',
+      'week off',
+      'wop',
+      'holiday'
+    ];
+
+    // Convert map entries to a list and sort according to preferred order
+    final entries = statusMap.entries.toList();
+
+    int _orderIndex(String key) {
+      final keyUpper = key.toString().toUpperCase();
+      // Check by code first
+      final codeIdx = preferredOrderCodes.indexOf(keyUpper);
+      if (codeIdx >= 0) return codeIdx;
+
+      // Otherwise check by label
+      final label = getStatusLabel(key).toLowerCase();
+      for (int i = 0; i < preferredOrderLabels.length; i++) {
+        final p = preferredOrderLabels[i];
+        if (label == p ||
+            label.contains(p) ||
+            keyUpper.contains(p.toUpperCase())) {
+          return i;
+        }
+      }
+      return preferredOrderLabels.length; // others go last
+    }
+
+    entries.sort((a, b) => _orderIndex(a.key).compareTo(_orderIndex(b.key)));
+
+    for (final entry in entries) {
+      final key = entry.key;
+      final value = entry.value;
+
+      // Generate color and value
+      final color = getRandomColor(colorIndex++, key);
       double doubleValue = 0.0;
       if (value is num) {
         doubleValue = value.toDouble();
@@ -1697,14 +1803,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       final double percentage = total > 0 ? doubleValue / total * 100 : 0;
       final formattedPercentage = percentage.toStringAsFixed(1);
 
-      // Create pie section; do NOT render percentage text inside the slice.
-      // Percentages will be shown in the legend to avoid overlap on small screens.
       sections.add(
         PieChartSectionData(
           color: color,
           value: doubleValue,
-          title: '', // hide title inside slice to prevent overlap
-          radius: 70,
+          title: '',
+          radius: 50,
           titleStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -1714,7 +1818,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       );
 
-      // Create legend item with dot and stacked label/value to avoid horizontal overflow
       legendItems.add(
         Container(
           margin: const EdgeInsets.only(bottom: 8),
@@ -1757,11 +1860,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
       );
-    });
+    }
 
     // Return the completed pie chart widget with clean design (simplified)
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1773,75 +1876,77 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            decoration: const BoxDecoration(
-              color: Color(0xFF506D94),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // Header
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              decoration: const BoxDecoration(
+                color: Color(0xFF506D94),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Expanded(
-                  child: Row(
-                    children: [
-                      Icon(Icons.pie_chart, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Attendance Summary',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.pie_chart, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Attendance Summary',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon:
-                      const Icon(Icons.refresh, color: Colors.white, size: 20),
-                  onPressed: refreshStatusPieChart,
-                  tooltip: 'Refresh Data',
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  iconSize: 20,
-                ),
-              ],
-            ),
-          ),
-          Container(height: 4, color: Colors.grey[100]),
-          // Content
-          Container(
-            padding: const EdgeInsets.only(top: 10),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
+                  IconButton(
+                    icon: const Icon(Icons.refresh,
+                        color: Colors.white, size: 20),
+                    onPressed: refreshStatusPieChart,
+                    tooltip: 'Refresh Data',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    iconSize: 20,
+                  ),
+                ],
               ),
             ),
-            child: Column(
-              children: [
-                const SizedBox(height: 5),
-                SizedBox(
-                  height: 175,
-                  child: Center(
-                    child: AspectRatio(
-                      aspectRatio: 1.3,
+            Container(height: 4, color: Colors.grey[100]),
+            // Content
+            Container(
+              padding: const EdgeInsets.only(top: 10),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 120,
+                      height: 120,
                       child: PieChart(
                         PieChartData(
-                          centerSpaceRadius: 30,
+                          centerSpaceRadius: 22,
                           sectionsSpace: 2,
                           centerSpaceColor: Colors.white,
                           borderData: FlBorderData(show: false),
@@ -1852,23 +1957,28 @@ class _DashboardScreenState extends State<DashboardScreen>
                         swapAnimationCurve: Curves.easeInOutQuint,
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: statusMap.length <= 3
+                            ? _buildLegendColumn(legendItems)
+                            : SizedBox(
+                                height: 120,
+                                child: ListView(
+                                  padding: EdgeInsets.zero,
+                                  physics: const ClampingScrollPhysics(),
+                                  children: legendItems,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
-                Container(
-                  height: 90,
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
-                  child: statusMap.length <= 3
-                      ? _buildLegendColumn(legendItems)
-                      : ListView(
-                          padding: EdgeInsets.zero,
-                          physics: const ClampingScrollPhysics(),
-                          children: legendItems,
-                        ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1952,7 +2062,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       itemBuilder: (context, index) {
         final item = actions[index];
         return InkWell(
-          onTap: () {
+          onTap: () async {
             final title = item['title'] as String;
             if (title == 'Leave Application') {
               Navigator.push(
@@ -1978,6 +2088,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                 MaterialPageRoute(
                     builder: (_) =>
                         ManualPunchListScreen(empKey: widget.empKey)),
+              );
+              return;
+            }
+            if (title == 'Manual Attendance') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        ManualAttendanceListScreen(empKey: widget.empKey)),
               );
               return;
             }

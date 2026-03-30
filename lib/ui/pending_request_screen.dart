@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:easytime_online/api/pending_requests_api.dart';
-import 'package:easytime_online/api/get_emp_scope_api.dart';
+import 'package:easytime_online/ui/generic_request_detail_screen.dart';
 
 class PendingRequestScreen extends StatefulWidget {
   final String empKey;
@@ -644,7 +644,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
-                                              // view
+                                              // view: open detailed screen for known entities
                                               Container(
                                                 decoration: const BoxDecoration(
                                                     color: Colors.white,
@@ -661,25 +661,19 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                   onPressed: _selectedItems
                                                           .contains(itemKey)
                                                       ? null
-                                                      : () {
-                                                          showDialog(
-                                                            context: context,
-                                                            builder: (_) =>
-                                                                AlertDialog(
-                                                              title: Text(
-                                                                  displayTitle),
-                                                              content: const Text(
-                                                                  'View details for this request.'),
-                                                              actions: [
-                                                                TextButton(
-                                                                    onPressed: () =>
-                                                                        Navigator.pop(
-                                                                            context),
-                                                                    child: const Text(
-                                                                        'CLOSE'))
-                                                              ],
-                                                            ),
-                                                          );
+                                                      : () async {
+                                                          FocusScope.of(context)
+                                                              .unfocus();
+                                                          // Open a generic, dynamic detail view
+                                                          Navigator.of(context).push(
+                                                              MaterialPageRoute(
+                                                                  builder: (_) =>
+                                                                      GenericRequestDetailScreen(
+                                                                        record:
+                                                                            r,
+                                                                        title:
+                                                                            displayTitle,
+                                                                      )));
                                                         },
                                                 ),
                                               ),

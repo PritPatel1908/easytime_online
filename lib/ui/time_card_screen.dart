@@ -58,7 +58,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
     super.dispose();
   }
 
-  void _fetchAttendanceData() {
+  void _fetchAttendanceData({bool forceRefresh = false}) {
     setState(() {
       _isLoading = true;
     });
@@ -75,6 +75,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
       widget.empKey,
       month: _selectedMonth,
       year: _selectedYear,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -308,7 +309,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _fetchAttendanceData,
+            onPressed: () => _fetchAttendanceData(forceRefresh: true),
             tooltip: 'Refresh',
           ),
         ],
@@ -484,7 +485,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
           textAlign: TextAlign.center),
       const SizedBox(height: 24),
       ElevatedButton.icon(
-          onPressed: _fetchAttendanceData,
+          onPressed: () => _fetchAttendanceData(forceRefresh: true),
           icon: const Icon(Icons.refresh),
           label: const Text('Retry'))
     ]));
@@ -503,7 +504,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
           textAlign: TextAlign.center),
       const SizedBox(height: 24),
       ElevatedButton.icon(
-          onPressed: _fetchAttendanceData,
+          onPressed: () => _fetchAttendanceData(forceRefresh: true),
           icon: const Icon(Icons.refresh),
           label: const Text('Refresh'))
     ]));

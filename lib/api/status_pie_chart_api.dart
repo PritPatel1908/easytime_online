@@ -10,13 +10,50 @@ class StatusPieChartApi {
   factory StatusPieChartApi() => _instance;
   StatusPieChartApi._internal();
 
-  // Stream controller for broadcasting status data updates
-  final _statusDataController =
-      StreamController<Map<String, dynamic>>.broadcast();
+  // Stream controller for broadcasting status data updates. Not final so
+  // it can be recreated if it was closed previously (eg. during an earlier
+  // lifecycle where dispose() closed it). Keeping it nullable allows us to
+  // lazily recreate the controller for new listeners after logout/login.
+  StreamController<Map<String, dynamic>>? _statusDataController;
 
-  // Public stream that UI can listen to
-  Stream<Map<String, dynamic>> get statusDataStream =>
-      _statusDataController.stream;
+  // Ensure the controller exists and is open. Recreate it if needed.
+  void _ensureController() {
+    if (_statusDataController == null || _statusDataController!.isClosed) {
+      _statusDataController =
+          StreamController<Map<String, dynamic>>.broadcast();
+      if (kDebugMode) {
+        print('StatusPieChartApi: created new StreamController');
+      }
+    }
+  }
+
+  // Public stream that UI can listen to. This ensures a controller exists
+  // before returning the stream so callers always get a usable stream.
+  Stream<Map<String, dynamic>> get statusDataStream {
+    _ensureController();
+    return _statusDataController!.stream;
+  }
+
+  // Safely add an event to the status data stream. This wraps the
+  // underlying controller add call to prevent unhandled exceptions when
+  // the controller has been closed elsewhere.
+  void _safeAdd(Map<String, dynamic> event) {
+    try {
+      _ensureController();
+      if (!_statusDataController!.isClosed) {
+        _statusDataController!.add(event);
+      } else {
+        if (kDebugMode) {
+          print('StatusPieChartApi: stream is closed, skipping add');
+        }
+      }
+    } catch (e, st) {
+      if (kDebugMode) {
+        print('Error adding to status stream: $e');
+        print(st);
+      }
+    }
+  }
 
   // Timer for periodic updates
   Timer? _periodicTimer;
@@ -58,7 +95,7 @@ class StatusPieChartApi {
         _provideMockDataForTesting();
         return;
       } else {
-        _statusDataController.add({
+        _safeAdd({
           'success': false,
           'message': 'Employee key is required',
         });
@@ -76,7 +113,7 @@ class StatusPieChartApi {
         _provideMockDataForTesting();
         return;
       } else {
-        _statusDataController.add({
+        _safeAdd({
           'success': false,
           'message': 'Employee key is empty',
         });
@@ -182,7 +219,7 @@ class StatusPieChartApi {
               print('Successfully fetched status data: ${data['status_data']}');
             }
 
-            _statusDataController.add({
+            _safeAdd({
               'success': true,
               'status_data': data['status_data'],
               'raw_response': data,
@@ -194,7 +231,7 @@ class StatusPieChartApi {
                   'API returned error: ${data['message'] ?? 'Unknown error'}');
             }
 
-            _statusDataController.add({
+            _safeAdd({
               'success': false,
               'message': data['message'] ?? 'Failed to load status data',
               'raw_response': data,
@@ -206,7 +243,7 @@ class StatusPieChartApi {
             print('Response body: $responseBody');
           }
 
-          _statusDataController.add({
+          _safeAdd({
             'success': false,
             'message':
                 'Invalid response format from server. Please try again later.',
@@ -220,7 +257,7 @@ class StatusPieChartApi {
 
           // For development only: Return mock data if the API fails
           print('Returning mock data for testing');
-          _statusDataController.add({
+          _safeAdd({
             'success': true,
             'status_data': {
               'PP': 6,
@@ -232,7 +269,7 @@ class StatusPieChartApi {
         }
 
         // HTTP error (only in production)
-        _statusDataController.add({
+        _safeAdd({
           'success': false,
           'message': 'Server error: ${response.statusCode}',
         });
@@ -249,7 +286,7 @@ class StatusPieChartApi {
 
         // For development only: Return mock data if there's a network error
         print('Returning mock data due to network error');
-        _statusDataController.add({
+        _safeAdd({
           'success': true,
           'status_data': {
             'PP': 6,
@@ -263,7 +300,7 @@ class StatusPieChartApi {
       }
 
       // Only in production
-      _statusDataController.add({
+      _safeAdd({
         'success': false,
         'message': 'Error connecting to server: ${e.toString()}',
       });
@@ -319,7 +356,7 @@ class StatusPieChartApi {
             }
 
             // Send to stream
-            _statusDataController.add({
+            _safeAdd({
               'success': true,
               'status_data': data['status_data'],
               'raw_response': data,
@@ -329,7 +366,7 @@ class StatusPieChartApi {
               print('API returned error or no status_data: $data');
             }
 
-            _statusDataController.add({
+            _safeAdd({
               'success': false,
               'message': data['message'] ?? 'Failed to load status data',
               'raw_response': data,
@@ -383,7 +420,7 @@ class StatusPieChartApi {
         _provideMockDataForTesting();
       } else {
         // In production, send error through the stream
-        _statusDataController.add({
+        _safeAdd({
           'success': false,
           'message': 'Employee key is required',
         });
@@ -424,7 +461,10 @@ class StatusPieChartApi {
   // Dispose method to clean up resources
   void dispose() {
     stopPeriodicUpdates();
-    _statusDataController.close();
+    // Do NOT close the broadcast stream controller here. Closing it
+    // prevents other parts of the app from listening after a logout/login
+    // cycle and causes "Bad state: Cannot add new events after calling close".
+    // _statusDataController.close();
   }
 
   // Provide mock data for testing in debug mode
@@ -440,7 +480,7 @@ class StatusPieChartApi {
       };
 
       // Send mock data through the stream
-      _statusDataController.add({
+      _safeAdd({
         'success': true,
         'message': 'Mock data loaded successfully',
         'status_data': mockStatusData,
