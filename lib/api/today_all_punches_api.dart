@@ -100,6 +100,118 @@ class TodayAllPunchesApi {
         }
       }
 
+      // If GET returned an empty punch_list, some servers expect a POST
+      // (form-encoded) request. Try a POST fallback before giving up.
+      if (punchList.isEmpty) {
+        if (kDebugMode) {
+          print(
+              'today_all_punches: empty list from GET, retrying with form-encoded POST');
+        }
+
+        try {
+          final postResp = await http
+              .post(
+                Uri.parse(apiUrl),
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json',
+                },
+                body: queryParams,
+              )
+              .timeout(const Duration(seconds: 20));
+
+          if (kDebugMode) {
+            print('today_all_punches POST status: ${postResp.statusCode}');
+            print('today_all_punches POST body: ${postResp.body}');
+          }
+
+          if (postResp.statusCode == 200) {
+            final decoded2 = jsonDecode(postResp.body);
+            if (decoded2 is Map<String, dynamic>) {
+              final rawList2 = decoded2['punch_list'];
+              final punchList2 = <Map<String, dynamic>>[];
+              if (rawList2 is List) {
+                for (final item in rawList2) {
+                  if (item is Map<String, dynamic>) {
+                    punchList2.add(item);
+                  } else if (item is Map) {
+                    punchList2.add(Map<String, dynamic>.from(item));
+                  }
+                }
+              }
+
+              if (punchList2.isNotEmpty) {
+                return {
+                  'success': true,
+                  'message': decoded2['message']?.toString() ?? '',
+                  'punch_list': punchList2,
+                  'raw_response': decoded2,
+                  'base_url': cleanUrl,
+                };
+              }
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('today_all_punches POST fallback error: $e');
+          }
+        }
+
+        // Try JSON POST as an additional fallback
+        if (kDebugMode) {
+          print('today_all_punches: retrying with JSON POST');
+        }
+        try {
+          final postJsonResp = await http
+              .post(
+                Uri.parse(apiUrl),
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: jsonEncode(queryParams),
+              )
+              .timeout(const Duration(seconds: 20));
+
+          if (kDebugMode) {
+            print(
+                'today_all_punches JSON POST status: ${postJsonResp.statusCode}');
+            print('today_all_punches JSON POST body: ${postJsonResp.body}');
+          }
+
+          if (postJsonResp.statusCode == 200) {
+            final decoded3 = jsonDecode(postJsonResp.body);
+            if (decoded3 is Map<String, dynamic>) {
+              final rawList3 = decoded3['punch_list'];
+              final punchList3 = <Map<String, dynamic>>[];
+              if (rawList3 is List) {
+                for (final item in rawList3) {
+                  if (item is Map<String, dynamic>) {
+                    punchList3.add(item);
+                  } else if (item is Map) {
+                    punchList3.add(Map<String, dynamic>.from(item));
+                  }
+                }
+              }
+
+              if (punchList3.isNotEmpty) {
+                return {
+                  'success': true,
+                  'message': decoded3['message']?.toString() ?? '',
+                  'punch_list': punchList3,
+                  'raw_response': decoded3,
+                  'base_url': cleanUrl,
+                };
+              }
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('today_all_punches JSON POST fallback error: $e');
+          }
+        }
+      }
+
       if (!success) {
         return {
           'success': false,
