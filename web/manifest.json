@@ -1,6 +1,6 @@
 {
-    "name": "easytime_online",
-    "short_name": "easytime_online",
+    "name": "EasyTime Online",
+    "short_name": "EasyTime Online",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
