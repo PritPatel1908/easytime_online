@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:easytime_online/api/pending_requests_api.dart';
 import 'package:easytime_online/ui/generic_request_detail_screen.dart';
@@ -98,11 +97,6 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
 
       final entityName = resolveEntityKey(entityOverride ?? _selectedType);
 
-      if (kDebugMode) {
-        print(
-            'Loading pending requests: emp_key=${widget.empKey} entity_name=$entityName');
-      }
-
       // Fetch emp scope and pending requests in parallel
       final pendingRes = await PendingRequestsApi()
           .fetchPendingRequests(empKey: widget.empKey, entityName: entityName);
@@ -190,6 +184,508 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
     return '';
   }
 
+  // Extract a stable id to send to the backend for a record.
+  // Prefer `request_details_key` when present, otherwise try common id fields.
+  String _extractSelectedId(Map<String, dynamic> r) {
+    if (r.containsKey('request_details_key') &&
+        r['request_details_key'] != null &&
+        r['request_details_key'].toString().isNotEmpty) {
+      return r['request_details_key'].toString();
+    }
+    final keys = [
+      'id',
+      'entity_endorsement_flow_details_id',
+      'entity_id',
+      'request_id'
+    ];
+    for (final kk in keys) {
+      if (r.containsKey(kk) && r[kk] != null && r[kk].toString().isNotEmpty)
+        return r[kk].toString();
+    }
+    return '';
+  }
+
+  bool _recordMatchesId(Map<String, dynamic> rr, String id) {
+    if (id.isEmpty) return false;
+    if (rr.containsKey('request_details_key') &&
+        rr['request_details_key'] != null &&
+        rr['request_details_key'].toString() == id) return true;
+    final keys = [
+      'id',
+      'entity_endorsement_flow_details_id',
+      'entity_id',
+      'request_id'
+    ];
+    for (final kk in keys) {
+      if (rr.containsKey(kk) && rr[kk] != null && rr[kk].toString() == id)
+        return true;
+    }
+    return false;
+  }
+
+  Future<void> _bulkApproveSelected() async {
+    final count = _selectedItems.length;
+    final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+                  title: const Text('Confirm Approve'),
+                  content: Text('Approve $count selected request(s)?'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel')),
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Approve')),
+                  ],
+                )) ??
+        false;
+    if (!confirmed) return;
+
+    // Group selected ids by entity_name
+    final Map<String, List<String>> groups = {};
+    for (int i = 0; i < _filteredRequests.length; i++) {
+      final r = _filteredRequests[i];
+      final itemKey = (r['id'] ??
+              r['entity_endorsement_flow_details_id'] ??
+              r['entity_id'] ??
+              r['request_id'] ??
+              i)
+          .toString();
+      if (!_selectedItems.contains(itemKey)) continue;
+      final selId = _extractSelectedId(r);
+      final entityName =
+          (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+      if (!groups.containsKey(entityName)) groups[entityName] = [];
+      groups[entityName]!.add(selId.isNotEmpty ? selId : itemKey);
+    }
+
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No selected items to approve')));
+      return;
+    }
+
+    // Build requests payload
+    final List<Map<String, dynamic>> requestsPayload = groups.entries.map((e) {
+      return {
+        'entity_name': e.key,
+        'action': 'approve_selected',
+        'selected_ids': e.value,
+      };
+    }).toList();
+
+    final res = await PendingRequestsApi().performBatchPendingRequestAction(
+      creatorOwner: widget.empKey,
+      requests: requestsPayload,
+    );
+
+    if (res['success'] == true) {
+      // If server returns a 'processed' array, prefer that. Otherwise assume all were processed.
+      final List<String> processedIds = [];
+      try {
+        final data = res['data'];
+        if (data is Map && data['processed'] is List) {
+          for (final p in data['processed']) {
+            if (p is Map && p['id'] != null)
+              processedIds.add(p['id'].toString());
+          }
+        }
+      } catch (_) {}
+      if (processedIds.isEmpty) {
+        // fallback: flatten groups
+        for (final v in groups.values) processedIds.addAll(v);
+      }
+
+      setState(() {
+        for (final id in processedIds) {
+          _requests.removeWhere((rr) => _recordMatchesId(rr, id));
+        }
+        _selectedItems.clear();
+        _swipedState.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Approved ${processedIds.length} request(s)')));
+    } else {
+      final msg = res['message'] ?? 'Failed to approve selected items';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Approve failed: $msg')));
+    }
+  }
+
+  Future<void> _bulkRejectSelected() async {
+    final count = _selectedItems.length;
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (ctx) {
+        final controller = TextEditingController();
+        final mq = MediaQuery.of(ctx);
+        final maxH = mq.size.height * 0.6;
+        return Padding(
+          padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+          child: StatefulBuilder(builder: (ctx2, setStateSheet) {
+            return SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxH),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Reject $count selected request(s)',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        const Text('Please enter reason for rejection'),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: controller,
+                          autofocus: true,
+                          maxLines: 5,
+                          onChanged: (_) => setStateSheet(() {}),
+                          decoration: const InputDecoration(
+                              hintText: 'Rejection reason',
+                              border: OutlineInputBorder()),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(null),
+                                child: const Text('Cancel')),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: controller.text.trim().isEmpty
+                                  ? null
+                                  : () => Navigator.of(ctx)
+                                      .pop(controller.text.trim()),
+                              child: const Text('Reject'),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+
+    if (reason == null || reason.trim().isEmpty) return;
+
+    // Group selected ids by entity_name
+    final Map<String, List<String>> groups = {};
+    for (int i = 0; i < _filteredRequests.length; i++) {
+      final r = _filteredRequests[i];
+      final itemKey = (r['id'] ??
+              r['entity_endorsement_flow_details_id'] ??
+              r['entity_id'] ??
+              r['request_id'] ??
+              i)
+          .toString();
+      if (!_selectedItems.contains(itemKey)) continue;
+      final selId = _extractSelectedId(r);
+      final entityName =
+          (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+      if (!groups.containsKey(entityName)) groups[entityName] = [];
+      groups[entityName]!.add(selId.isNotEmpty ? selId : itemKey);
+    }
+
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No selected items to reject')));
+      return;
+    }
+
+    // Build requests payload
+    final List<Map<String, dynamic>> requestsPayload = groups.entries.map((e) {
+      return {
+        'entity_name': e.key,
+        'action': 'reject_selected',
+        'selected_ids': e.value,
+        'reason': reason.trim(),
+      };
+    }).toList();
+
+    final res = await PendingRequestsApi().performBatchPendingRequestAction(
+      creatorOwner: widget.empKey,
+      requests: requestsPayload,
+    );
+
+    if (res['success'] == true) {
+      final List<String> processedIds = [];
+      final List<String> failedIds = [];
+      try {
+        final data = res['data'];
+        if (data is Map) {
+          if (data['processed'] is List) {
+            for (final p in data['processed']) {
+              if (p is Map && p['id'] != null)
+                processedIds.add(p['id'].toString());
+            }
+          }
+          if (data['failed'] is List) {
+            for (final f in data['failed']) {
+              if (f is Map && f['id'] != null)
+                failedIds.add(f['id'].toString());
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (processedIds.isEmpty) {
+        for (final v in groups.values) processedIds.addAll(v);
+      }
+
+      setState(() {
+        for (final id in processedIds) {
+          _requests.removeWhere((rr) => _recordMatchesId(rr, id));
+        }
+        _selectedItems.clear();
+        _swipedState.clear();
+      });
+
+      final processedCount = processedIds.length;
+      final failedCount = failedIds.length;
+      final msg = 'Rejected $processedCount request(s)';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(failedCount > 0 ? '$msg — $failedCount failed' : msg)));
+    } else {
+      final msg = res['message'] ?? 'Failed to reject selected items';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Reject failed: $msg')));
+    }
+  }
+
+  Future<void> _rejectSingle(
+      String itemKey, Map<String, dynamic> r, String displayTitle) async {
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (ctx) {
+        final controller = TextEditingController();
+        final mq = MediaQuery.of(ctx);
+        final maxH = mq.size.height * 0.6;
+        return Padding(
+          padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+          child: StatefulBuilder(builder: (ctx2, setStateSheet) {
+            return SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxH),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Please enter reason for rejection'),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: controller,
+                          autofocus: true,
+                          maxLines: 5,
+                          onChanged: (_) => setStateSheet(() {}),
+                          decoration: const InputDecoration(
+                              hintText: 'Rejection reason',
+                              border: OutlineInputBorder()),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(null),
+                                child: const Text('Cancel')),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: controller.text.trim().isEmpty
+                                  ? null
+                                  : () => Navigator.of(ctx)
+                                      .pop(controller.text.trim()),
+                              child: const Text('Reject'),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+
+    if (reason == null || reason.trim().isEmpty) return;
+
+    // Prepare API params
+    final entityName =
+        (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+    String selectedId = '';
+    if (r.containsKey('request_details_key') &&
+        r['request_details_key'] != null &&
+        r['request_details_key'].toString().isNotEmpty) {
+      selectedId = r['request_details_key'].toString();
+    } else {
+      final keys = [
+        'id',
+        'entity_endorsement_flow_details_id',
+        'entity_id',
+        'request_id'
+      ];
+      for (final kk in keys) {
+        if (r.containsKey(kk) && r[kk] != null && r[kk].toString().isNotEmpty) {
+          selectedId = r[kk].toString();
+          break;
+        }
+      }
+    }
+
+    if (selectedId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Cannot determine request id for $displayTitle')));
+      return;
+    }
+
+    // Call backend to reject
+    final res = await PendingRequestsApi().performPendingRequestAction(
+      creatorOwner: widget.empKey,
+      action: 'reject_selected',
+      entityName: entityName,
+      selectedIds: selectedId,
+      reason: reason.trim(),
+    );
+
+    if (res['success'] == true) {
+      setState(() {
+        final keys = [
+          'id',
+          'entity_endorsement_flow_details_id',
+          'entity_id',
+          'request_id'
+        ];
+        var removed = false;
+        for (final kk in keys) {
+          if (r.containsKey(kk)) {
+            _requests.removeWhere((rr) => rr[kk] == r[kk]);
+            removed = true;
+            break;
+          }
+        }
+        if (!removed) _requests.remove(r);
+        _selectedItems.remove(itemKey);
+        _swipedState.remove(itemKey);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Rejected: $displayTitle — $reason')));
+    } else {
+      final msg = res['message'] ?? 'Failed to reject';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Reject failed: $msg')));
+    }
+  }
+
+  Future<void> _approveSingle(
+      String itemKey, Map<String, dynamic> r, String displayTitle) async {
+    final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+                  title: const Text('Confirm Approve'),
+                  content: Text('Approve: $displayTitle?'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel')),
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Approve')),
+                  ],
+                )) ??
+        false;
+    if (!confirmed) return;
+
+    final entityName =
+        (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+    String selectedId = '';
+    if (r.containsKey('request_details_key') &&
+        r['request_details_key'] != null &&
+        r['request_details_key'].toString().isNotEmpty) {
+      selectedId = r['request_details_key'].toString();
+    } else {
+      final keys = [
+        'id',
+        'entity_endorsement_flow_details_id',
+        'entity_id',
+        'request_id'
+      ];
+      for (final kk in keys) {
+        if (r.containsKey(kk) && r[kk] != null && r[kk].toString().isNotEmpty) {
+          selectedId = r[kk].toString();
+          break;
+        }
+      }
+    }
+
+    if (selectedId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Cannot determine request id for $displayTitle')));
+      return;
+    }
+
+    final res = await PendingRequestsApi().performPendingRequestAction(
+      creatorOwner: widget.empKey,
+      action: 'approve_selected',
+      entityName: entityName,
+      selectedIds: selectedId,
+    );
+
+    if (res['success'] == true) {
+      setState(() {
+        final keys = [
+          'id',
+          'entity_endorsement_flow_details_id',
+          'entity_id',
+          'request_id'
+        ];
+        var removed = false;
+        for (final kk in keys) {
+          if (r.containsKey(kk)) {
+            _requests.removeWhere((rr) => rr[kk] == r[kk]);
+            removed = true;
+            break;
+          }
+        }
+        if (!removed) _requests.remove(r);
+        _selectedItems.remove(itemKey);
+        _swipedState.remove(itemKey);
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Approved: $displayTitle')));
+    } else {
+      final msg = res['message'] ?? 'Failed to approve';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Approve failed: $msg')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -229,6 +725,28 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
           ),
         ],
       ),
+      floatingActionButton: _selectedItems.isNotEmpty
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'bulk_approve',
+                  onPressed: _bulkApproveSelected,
+                  backgroundColor: Colors.green,
+                  tooltip: 'Approve selected',
+                  child: const Icon(Icons.check),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton(
+                  heroTag: 'bulk_reject',
+                  onPressed: _bulkRejectSelected,
+                  backgroundColor: Colors.red,
+                  tooltip: 'Reject selected',
+                  child: const Icon(Icons.close),
+                ),
+              ],
+            )
+          : null,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusScope.of(context).unfocus(),
@@ -696,11 +1214,10 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                           .contains(itemKey)
                                                       ? null
                                                       : () {
-                                                          ScaffoldMessenger.of(
-                                                                  context)
-                                                              .showSnackBar(SnackBar(
-                                                                  content: Text(
-                                                                      'Approve: $displayTitle')));
+                                                          _approveSingle(
+                                                              itemKey,
+                                                              r,
+                                                              displayTitle);
                                                         },
                                                 ),
                                               ),
@@ -723,11 +1240,8 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                           .contains(itemKey)
                                                       ? null
                                                       : () {
-                                                          ScaffoldMessenger.of(
-                                                                  context)
-                                                              .showSnackBar(SnackBar(
-                                                                  content: Text(
-                                                                      'Reject: $displayTitle')));
+                                                          _rejectSingle(itemKey,
+                                                              r, displayTitle);
                                                         },
                                                 ),
                                               ),

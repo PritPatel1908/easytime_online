@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class MonthlyWorkHoursDetailApi {
@@ -94,9 +93,6 @@ class MonthlyWorkHoursDetailApi {
     // Check for cached data first
     if (useCache && isCacheValid(empKey)) {
       _workHoursDetailController.add(_cachedData!);
-      if (kDebugMode) {
-        print('Using cached monthly work hours detail data');
-      }
     }
 
     try {
@@ -111,11 +107,6 @@ class MonthlyWorkHoursDetailApi {
 
       // Create full API URL
       final apiUrl = '$cleanUrl$endpoint';
-
-      if (kDebugMode) {
-        print(
-            'Fetching monthly work hours detail from: $apiUrl with emp_key: $empKey');
-      }
 
       final response = await http.post(
         Uri.parse(apiUrl),
@@ -134,9 +125,6 @@ class MonthlyWorkHoursDetailApi {
         // Check if response is HTML instead of JSON
         if (_isHtmlResponse(responseBody)) {
           final errorMessage = _extractErrorFromHtml(responseBody);
-          if (kDebugMode) {
-            print('Received HTML response instead of JSON: $errorMessage');
-          }
 
           _workHoursDetailController.add({
             'success': false,
@@ -147,9 +135,6 @@ class MonthlyWorkHoursDetailApi {
 
         try {
           final data = json.decode(responseBody);
-          if (kDebugMode) {
-            print('Monthly work hours detail response: $data');
-          }
 
           final resultData = {
             'success': true,
@@ -162,11 +147,6 @@ class MonthlyWorkHoursDetailApi {
 
           _workHoursDetailController.add(resultData);
         } catch (e) {
-          if (kDebugMode) {
-            print('Error parsing JSON response: $e');
-            print('Response body: $responseBody');
-          }
-
           _workHoursDetailController.add({
             'success': false,
             'message':
@@ -174,12 +154,6 @@ class MonthlyWorkHoursDetailApi {
           });
         }
       } else {
-        if (kDebugMode) {
-          print(
-              'Failed to load monthly work hours detail. Status code: ${response.statusCode}');
-          print('Response body: ${response.body}');
-        }
-
         // Check if error response is HTML
         if (_isHtmlResponse(response.body)) {
           final errorMessage = _extractErrorFromHtml(response.body);
@@ -196,18 +170,12 @@ class MonthlyWorkHoursDetailApi {
         }
       }
     } on TimeoutException catch (_) {
-      if (kDebugMode) {
-        print('Connection timed out while fetching monthly work hours detail');
-      }
       _workHoursDetailController.add({
         'success': false,
         'message':
             'Connection timed out. Please check your internet connection.',
       });
     } catch (e) {
-      if (kDebugMode) {
-        print('Error fetching monthly work hours detail: $e');
-      }
       _workHoursDetailController.add({
         'success': false,
         'message': 'Error: ${e.toString()}',

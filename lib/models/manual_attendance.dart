@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class ManualAttendanceApplication {
   final List<String> employeeKeys;
   final DateTime inDatetime;

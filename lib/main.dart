@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async'; // Added for Timer
-import 'package:flutter/foundation.dart'; // Added for kDebugMode
 
 // Utility class to hide system navigation bar
 class SystemUIUtil {
@@ -90,8 +89,17 @@ class SystemUIObserver with WidgetsBindingObserver {
   }
 }
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Ensure a local base API URL is set when none exists (useful for local dev/testing)
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    if ((prefs.getString('base_api_url') ?? '').isEmpty) {
+      await prefs.setString('base_api_url', 'http://192.168.1.52:9091');
+    }
+  } catch (e) {
+    // ignore errors
+  }
 
   // Set preferred orientations
   SystemChrome.setPreferredOrientations([
@@ -545,11 +553,6 @@ class _HomeScreenState extends State<HomeScreen> {
           userData = result['response_data']['user_data'];
         }
 
-        // Debug print to see if userData contains emp_key
-        if (kDebugMode) {
-          print("DEBUG - userData extracted: $userData");
-        }
-
         // Ensure emp_key is set (handle different API response formats)
         String? empKey;
 
@@ -567,21 +570,30 @@ class _HomeScreenState extends State<HomeScreen> {
           empKey = _findEmpKeyRecursively(result);
         }
 
-        // If we still don't have emp_key, use a default for testing
+        // If we still don't have emp_key, do not use development defaults
         if (empKey == null || empKey.isEmpty) {
-          // WARNING: Only for development!
-          empKey = "1234"; // Replace with your actual test emp_key if needed
-          if (kDebugMode) {
-            print("WARNING: Using default emp_key for testing: $empKey");
-          }
-        }
-
-        if (kDebugMode) {
-          print("DEBUG - Final empKey to use: $empKey");
+          // No emp_key available; continue without assigning test defaults.
         }
 
         // Ensure userData has emp_key explicitly set
         userData['emp_key'] = empKey;
+
+        // Include announcements from response_data if available
+        try {
+          // Robustly find announcements anywhere inside response_data
+          List<dynamic>? found =
+              _findAnnouncementsRecursively(result['response_data']);
+          if (found != null && found.isNotEmpty) {
+            userData['announcements'] = found;
+
+            // Persist announcements for dashboard fallback
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString(
+                  'latest_announcements_json', jsonEncode(found));
+            } catch (_) {}
+          }
+        } catch (_) {}
 
         // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(
@@ -771,111 +783,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Method removed to fix unused element warning
-
-  // Method removed to fix unused element warning
-
-  // Method removed to fix unused element warning
-
-  // Execute PHP API login with detailed response
-  // Removed to fix unused element warning
-  // void ___executePhpApiLogin(
-  //     String apiUrl, String username, String password) async {
-  //   // Dismiss keyboard
-  //   FocusScope.of(context).unfocus();
-  //
-  //   // Store context before async gap
-  //   final BuildContext currentContext = context;
-  //
-  //   // Show loading indicator
-  //   setState(() {
-  //     buttonText = 'SENDING...';
-  //   });
-  //
-  //   try {
-  //     // Call our new PHP API login method
-  //     final result =
-  //         await ApiService.loginWithPhpApi(apiUrl, username, password);
-  //
-  //     if (!mounted) return;
-  //
-  //     setState(() {
-  //       buttonText = 'LOGIN';
-  //     });
-  //
-  //     // Determine if login was successful
-  //     bool isSuccess = result['success'] == true;
-  //     String message = result['message'] ?? 'Unknown response';
-  //
-  //     // Show toast message
-  //     _safelyShowToast(message, isSuccess: isSuccess);
-  //
-  //     // If login successful, navigate to dashboard after a short delay
-  //     if (isSuccess) {
-  //       // Extract user data from response
-  //       Map<String, dynamic> userData = {};
-  //       if (result['response_data'].containsKey('user_data')) {
-  //         userData = result['response_data']['user_data'];
-  //       }
-  //
-  //       // Debug print to see if userData contains emp_key
-  //       if (kDebugMode) {
-  //         print("DEBUG - userData extracted: $userData");
-  //       }
-  //
-  //       // Ensure emp_key is set (handle different API response formats)
-  //       String? empKey;
-  //
-  //       // Try to extract emp_key from different locations
-  //       if (userData.containsKey('emp_key')) {
-  //         empKey = userData['emp_key']?.toString();
-  //       } else if (result['response_data'].containsKey('emp_key')) {
-  //         empKey = result['response_data']['emp_key']?.toString();
-  //       } else if (result.containsKey('emp_key')) {
-  //         empKey = result['emp_key']?.toString();
-  //       }
-  //
-  //       // If we still don't have emp_key, try to find it recursively
-  //       if (empKey == null || empKey.isEmpty) {
-  //         empKey = _findEmpKeyRecursively(result);
-  //       }
-  //
-  //       // If we still don't have emp_key, use a default for testing
-  //       if (empKey == null || empKey.isEmpty) {
-  //         // WARNING: Only for development!
-  //         empKey = "1234"; // Replace with your actual test emp_key if needed
-  //         if (kDebugMode) {
-  //           print("WARNING: Using default emp_key for testing: $empKey");
-  //         }
-  //       }
-  //
-  //       if (kDebugMode) {
-  //         print("DEBUG - Final empKey to use: $empKey");
-  //       }
-  //
-  //       // Ensure userData has emp_key explicitly set
-  //       userData['emp_key'] = empKey;
-  //
-  //       // Navigate to dashboard
-  //       _navigateToDashboardAfterDelay(
-  //         currentContext,
-  //         userData['emp_name'] ?? username,
-  //         {
-  //           'user_data': userData,
-  //           'emp_key': empKey, // Add explicit emp_key at top level
-  //         },
-  //       );
-  //     }
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //
-  //     setState(() {
-  //       buttonText = 'LOGIN';
-  //     });
-  //     _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
-  //   }
-  // }
-
   // Helper method to recursively find emp_key in a complex object
   String? _findEmpKeyRecursively(dynamic obj, [int depth = 0]) {
     // Prevent infinite recursion
@@ -916,6 +823,40 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    return null;
+  }
+
+  // Helper to locate announcements list anywhere inside a nested object
+  List<dynamic>? _findAnnouncementsRecursively(dynamic obj, [int depth = 0]) {
+    if (depth > 8) return null;
+    if (obj == null) return null;
+    if (obj is Map) {
+      for (final key in obj.keys) {
+        if (key is String) {
+          final low = key.toLowerCase();
+          if (low == 'announcements' || low == 'announcement') {
+            final val = obj[key];
+            if (val is List) return val;
+            if (val is Map) return [val];
+          }
+        }
+      }
+
+      for (final entry in obj.entries) {
+        final v = entry.value;
+        if (v is Map || v is List) {
+          final res = _findAnnouncementsRecursively(v, depth + 1);
+          if (res != null) return res;
+        }
+      }
+    } else if (obj is List) {
+      for (final item in obj) {
+        if (item is Map || item is List) {
+          final res = _findAnnouncementsRecursively(item, depth + 1);
+          if (res != null) return res;
+        }
+      }
+    }
     return null;
   }
 

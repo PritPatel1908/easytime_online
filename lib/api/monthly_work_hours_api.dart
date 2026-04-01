@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart'; // Import for kDebugMode
 
 class MonthlyWorkHoursApi {
   // Singleton instance
@@ -73,15 +72,8 @@ class MonthlyWorkHoursApi {
       // Create API endpoint URL
       final apiUrl = '$cleanUrl/api/monthly_work_hours';
 
-      if (kDebugMode) {
-        print('Fetching work hours from: $apiUrl with emp_key: $empKey');
-      }
-
       // Try form-encoded request first
       try {
-        if (kDebugMode) {
-          print('Trying form-encoded request with emp_key=$empKey');
-        }
         final formResponse = await http.post(
           Uri.parse(apiUrl),
           headers: {
@@ -91,11 +83,6 @@ class MonthlyWorkHoursApi {
             'emp_key': empKey,
           },
         ).timeout(const Duration(seconds: 15));
-
-        if (kDebugMode) {
-          print('Form response status: ${formResponse.statusCode}');
-          print('Form response body: ${formResponse.body}');
-        }
 
         if (formResponse.statusCode == 200) {
           try {
@@ -108,10 +95,6 @@ class MonthlyWorkHoursApi {
 
               if (success && data.containsKey('work_hours')) {
                 var workHours = data['work_hours'];
-                if (kDebugMode) {
-                  print(
-                      'Work hours from form API: $workHours (${workHours.runtimeType})');
-                }
 
                 return {
                   'success': true,
@@ -120,24 +103,13 @@ class MonthlyWorkHoursApi {
                 };
               }
             }
-          } catch (e) {
-            if (kDebugMode) {
-              print('Error parsing form response: $e');
-            }
-          }
+          } catch (e) {}
         }
-      } catch (e) {
-        if (kDebugMode) {
-          print('Error with form request: $e');
-        }
-      }
+      } catch (e) {}
 
       // Try a different approach - direct URL with emp_key as query parameter
       try {
         final directUrl = '$apiUrl?emp_key=$empKey';
-        if (kDebugMode) {
-          print('Trying direct URL request: $directUrl');
-        }
 
         final directResponse = await http.get(
           Uri.parse(directUrl),
@@ -145,11 +117,6 @@ class MonthlyWorkHoursApi {
             'Accept': 'application/json',
           },
         ).timeout(const Duration(seconds: 15));
-
-        if (kDebugMode) {
-          print('Direct URL response status: ${directResponse.statusCode}');
-          print('Direct URL response body: ${directResponse.body}');
-        }
 
         if (directResponse.statusCode == 200) {
           try {
@@ -162,9 +129,6 @@ class MonthlyWorkHoursApi {
 
               if (success && data.containsKey('work_hours')) {
                 var workHours = data['work_hours'];
-                if (kDebugMode) {
-                  print('Work hours from direct URL: $workHours');
-                }
 
                 return {
                   'success': true,
@@ -173,23 +137,12 @@ class MonthlyWorkHoursApi {
                 };
               }
             }
-          } catch (e) {
-            if (kDebugMode) {
-              print('Error parsing direct URL response: $e');
-            }
-          }
+          } catch (e) {}
         }
-      } catch (e) {
-        if (kDebugMode) {
-          print('Error with direct URL request: $e');
-        }
-      }
+      } catch (e) {}
 
       // If previous methods didn't work, try JSON
       try {
-        if (kDebugMode) {
-          print('Trying JSON request with emp_key=$empKey');
-        }
         final jsonResponse = await http
             .post(
               Uri.parse(apiUrl),
@@ -203,11 +156,6 @@ class MonthlyWorkHoursApi {
             )
             .timeout(const Duration(seconds: 15));
 
-        if (kDebugMode) {
-          print('JSON response status: ${jsonResponse.statusCode}');
-          print('JSON response body: ${jsonResponse.body}');
-        }
-
         if (jsonResponse.statusCode == 200) {
           try {
             final Map<String, dynamic> data = json.decode(jsonResponse.body);
@@ -219,10 +167,6 @@ class MonthlyWorkHoursApi {
 
               if (success && data.containsKey('work_hours')) {
                 var workHours = data['work_hours'];
-                if (kDebugMode) {
-                  print(
-                      'Work hours from JSON API: $workHours (${workHours.runtimeType})');
-                }
 
                 return {
                   'success': true,
@@ -230,9 +174,6 @@ class MonthlyWorkHoursApi {
                   'raw_response': data,
                 };
               } else {
-                if (kDebugMode) {
-                  print('API response missing work_hours: $data');
-                }
                 return {
                   'success': false,
                   'message': data['message'] ?? 'No work hours data available',
@@ -240,11 +181,7 @@ class MonthlyWorkHoursApi {
                 };
               }
             }
-          } catch (e) {
-            if (kDebugMode) {
-              print('Error parsing JSON response: $e');
-            }
-          }
+          } catch (e) {}
         }
 
         // If we got here, return the JSON response data
@@ -262,11 +199,7 @@ class MonthlyWorkHoursApi {
             'raw_response': jsonResponse.body,
           };
         }
-      } catch (e) {
-        if (kDebugMode) {
-          print('Error with JSON request: $e');
-        }
-      }
+      } catch (e) {}
 
       // If all attempts failed
       return {
@@ -274,9 +207,6 @@ class MonthlyWorkHoursApi {
         'message': 'Failed to get work hours after multiple attempts',
       };
     } catch (e) {
-      if (kDebugMode) {
-        print('Error connecting to server: $e');
-      }
       return {
         'success': false,
         'message': 'Error connecting to server: ${e.toString()}',

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LeaveApplicationsApi {
@@ -25,10 +24,6 @@ class LeaveApplicationsApi {
       }
       final apiUrl = '$cleanUrl/api/leave_applications_by_emp_keys';
 
-      if (kDebugMode) {
-        print('Fetching leave applications for emp_keys=${empKeys.join(',')}');
-      }
-
       final bodyMap = {'emp_key': empKeys.map((e) => e.toString()).join(',')};
 
       // Try form POST
@@ -40,14 +35,11 @@ class LeaveApplicationsApi {
               body: bodyMap.map((k, v) => MapEntry(k, v.toString())),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form POST error: $e');
-      }
+      } catch (e) {}
 
       // GET fallback
       try {
@@ -56,14 +48,11 @@ class LeaveApplicationsApi {
         final resp = await http.get(Uri.parse(uri), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('GET response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('GET error: $e');
-      }
+      } catch (e) {}
 
       // JSON POST
       try {
@@ -77,21 +66,17 @@ class LeaveApplicationsApi {
               body: jsonEncode(bodyMap),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {
         'success': false,
         'message': 'Failed to fetch leave applications'
       };
     } catch (e) {
-      if (kDebugMode) print('fetchByEmpKeys error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -116,11 +101,6 @@ class LeaveApplicationsApi {
       }
       final apiUrl = '$cleanUrl/api/validate_submit';
 
-      if (kDebugMode) {
-        print(
-            'Calling validate_submit: emp_keys=${empKeys.join(',')} creator_owner=${creatorOwner ?? ''}');
-      }
-
       final bodyMap = {
         'emp_key': empKeys.join(','),
         'leave_type': leaveTypeKey,
@@ -144,7 +124,6 @@ class LeaveApplicationsApi {
               body: bodyMap.map((k, v) => MapEntry(k, v.toString())),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           try {
             final Map<String, dynamic> data = json.decode(resp.body);
@@ -159,7 +138,6 @@ class LeaveApplicationsApi {
         }
       } catch (e) {
         attemptErrors.add('Form POST error: $e');
-        if (kDebugMode) print('Form POST error: $e');
       }
 
       // GET fallback
@@ -169,7 +147,6 @@ class LeaveApplicationsApi {
         final resp = await http.get(Uri.parse(uri), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('GET response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           try {
             final Map<String, dynamic> data = json.decode(resp.body);
@@ -182,7 +159,6 @@ class LeaveApplicationsApi {
         }
       } catch (e) {
         attemptErrors.add('GET error: $e');
-        if (kDebugMode) print('GET error: $e');
       }
 
       // JSON POST
@@ -197,7 +173,6 @@ class LeaveApplicationsApi {
               body: jsonEncode(bodyMap),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           try {
             final Map<String, dynamic> data = json.decode(resp.body);
@@ -212,7 +187,6 @@ class LeaveApplicationsApi {
         }
       } catch (e) {
         attemptErrors.add('JSON POST error: $e');
-        if (kDebugMode) print('JSON POST error: $e');
       }
 
       final message = attemptErrors.isNotEmpty
@@ -220,7 +194,6 @@ class LeaveApplicationsApi {
           : 'Failed to validate submit';
       return {'success': false, 'message': message};
     } catch (e) {
-      if (kDebugMode) print('validateSubmit error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -235,10 +208,6 @@ class LeaveApplicationsApi {
       }
       final apiUrl = '$cleanUrl/api/get_leave_types_by_emp_keys';
 
-      if (kDebugMode) {
-        print('Fetching leave types for emp_keys=${empKeys.join(',')}');
-      }
-
       final bodyMap = {'emp_key': empKeys.map((e) => e.toString()).join(',')};
 
       // Try form POST
@@ -250,14 +219,11 @@ class LeaveApplicationsApi {
               body: bodyMap.map((k, v) => MapEntry(k, v.toString())),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form POST error: $e');
-      }
+      } catch (e) {}
 
       // GET fallback
       try {
@@ -266,14 +232,11 @@ class LeaveApplicationsApi {
         final resp = await http.get(Uri.parse(uri), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('GET response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('GET error: $e');
-      }
+      } catch (e) {}
 
       // JSON POST
       try {
@@ -287,18 +250,14 @@ class LeaveApplicationsApi {
               body: jsonEncode(bodyMap),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {'success': false, 'message': 'Failed to fetch leave types'};
     } catch (e) {
-      if (kDebugMode) print('fetchLeaveTypesByEmpKeys error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }

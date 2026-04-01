@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'package:easytime_online/api/monthly_work_hours_api.dart';
@@ -25,6 +25,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easytime_online/main/main.dart';
+import 'package:easytime_online/api/client_codes_fetch_api.dart';
+
+// Production: treat debug-mode checks as disabled (remove debug-only branches)
+const bool kDebugMode = false;
 
 class DashboardScreen extends StatefulWidget {
   final String? userName;
@@ -105,22 +109,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     _tabController = TabController(length: 2, vsync: this);
 
-    // Debug print userData with more detailed logging
-    if (kDebugMode) {
-      print("Dashboard initialized with userData: ${widget.userData}");
-    }
-
     try {
       // Try to log full userData structure for debugging
       if (widget.userData != null) {
-        if (kDebugMode) {
-          print("Full userData structure: ${json.encode(widget.userData)}");
-        }
+        if (kDebugMode) {}
       }
     } catch (e) {
-      if (kDebugMode) {
-        print("Error encoding userData: $e");
-      }
+      if (kDebugMode) {}
     }
 
     // Start background service for work hours
@@ -142,18 +137,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           _statOrder = list;
         });
       }
-    } catch (e) {
-      if (kDebugMode) print('Error loading stat order: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> _saveStatOrder() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList('dashboard_stat_order', _statOrder);
-    } catch (e) {
-      if (kDebugMode) print('Error saving stat order: $e');
-    }
+    } catch (e) {}
   }
 
   void _startLongHold(String id) {
@@ -188,9 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _prefetchAttendanceHistory() {
     String? empKey = _findEmployeeKey();
     if (empKey != null) {
-      if (kDebugMode) {
-        print("Prefetching attendance history data in background");
-      }
+      if (kDebugMode) {}
 
       // Get current month and year
       final now = DateTime.now();
@@ -262,10 +251,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (result['success'] == true && result.containsKey('work_hours')) {
               // Format work hours to display
               var workHoursValue = result['work_hours'];
-              if (kDebugMode) {
-                print(
-                    "Processing monthly work hours value: $workHoursValue (${workHoursValue.runtimeType})");
-              }
+              if (kDebugMode) {}
 
               // Check if it's in HH:MM format
               if (workHoursValue is String && workHoursValue.contains(':')) {
@@ -278,14 +264,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     int.parse(parts[1]);
                     // Use the original value from API without any calculations
                     _monthlyWorkHours = workHoursValue;
-                    if (kDebugMode) {
-                      print(
-                          "Using original time format from API: $_monthlyWorkHours");
-                    }
+                    if (kDebugMode) {}
                   } catch (e) {
-                    if (kDebugMode) {
-                      print("Error parsing time format: $e");
-                    }
+                    if (kDebugMode) {}
                     _monthlyWorkHours =
                         workHoursValue; // Just use the original string
                   }
@@ -298,15 +279,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                 _monthlyWorkHours = workHoursValue.toString();
               }
 
-              if (kDebugMode) {
-                print("Updated monthly work hours: $_monthlyWorkHours");
-              }
+              if (kDebugMode) {}
             } else {
               _monthlyWorkHoursError =
                   result['message'] ?? "Failed to load monthly work hours";
-              if (kDebugMode) {
-                print("Monthly work hours error: $_monthlyWorkHoursError");
-              }
+              if (kDebugMode) {}
             }
           });
         }
@@ -322,15 +299,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               _inPunch = result['in_punch']?.toString() ?? '';
               _outPunch = result['out_punch']?.toString() ?? '';
               _todayPunchesError = '';
-              if (kDebugMode) {
-                print('Updated today punches: IN=$_inPunch OUT=$_outPunch');
-              }
+              if (kDebugMode) {}
             } else {
               _todayPunchesError =
                   result['message'] ?? 'Failed to load today punches';
-              if (kDebugMode) {
-                print('Today punches error: $_todayPunchesError');
-              }
+              if (kDebugMode) {}
             }
           });
         }
@@ -344,9 +317,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Also fetch once and print raw response to debug console
       try {
         _todayPunchesApi.fetchAndLog(empKey);
-      } catch (e) {
-        if (kDebugMode) print('Error calling fetchAndLog: $e');
-      }
+      } catch (e) {}
 
       // Subscribe to status pie chart data updates
       setState(() {
@@ -355,37 +326,22 @@ class _DashboardScreenState extends State<DashboardScreen>
 
       // Validate employee key one more time specifically for pie chart
       if (empKey.trim().isEmpty && !kDebugMode) {
-        if (kDebugMode) {
-          print(
-              "WARNING: Empty employee key for status pie chart after trimming");
-        }
+        if (kDebugMode) {}
         setState(() {
           _isLoadingStatusPieChart = false;
           _statusPieChartError = "Employee key is empty";
         });
       } else {
-        if (kDebugMode) {
-          print("\n==== STATUS PIE CHART SETUP ====");
-          print("Setting up status pie chart with empKey: '$empKey'");
-          print("Employee key type: ${empKey.runtimeType}");
-          print("Employee key length: ${empKey.length}");
-          print(
-              "Employee key codeUnits: ${empKey.codeUnits}"); // Check for invisible characters
-        }
+        if (kDebugMode) {}
 
         // Make sure empKey is a valid string for API call
         final validEmpKey = empKey.trim();
-        if (kDebugMode) {
-          print("Using validEmpKey for status pie chart: '$validEmpKey'");
-        }
+        if (kDebugMode) {}
 
         // Set up the stream subscription first
         _statusPieChartSubscription =
             _statusPieChartApi.statusDataStream.listen((result) {
-          if (kDebugMode) {
-            print(
-                "Received status pie chart data update: ${result['success']}");
-          }
+          if (kDebugMode) {}
           if (mounted) {
             setState(() {
               _isLoadingStatusPieChart = false;
@@ -405,17 +361,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 }
 
                 _statusPieChartError = "";
-                if (kDebugMode && shouldUpdate) {
-                  print("Updated status pie chart data: $_statusPieChartData");
-                }
+                if (kDebugMode && shouldUpdate) {}
               } else {
                 // Only update error if we don't already have data
                 if (_statusPieChartData == null) {
                   _statusPieChartError =
                       result['message'] ?? "Failed to load status data";
-                  if (kDebugMode) {
-                    print("Status pie chart error: $_statusPieChartError");
-                  }
+                  if (kDebugMode) {}
                 }
               }
             });
@@ -425,23 +377,15 @@ class _DashboardScreenState extends State<DashboardScreen>
         // Start periodic updates for status pie chart
         try {
           // Make an immediate direct call to fetch data
-          if (kDebugMode) {
-            print("Making immediate call to fetch status pie chart data");
-          }
+          if (kDebugMode) {}
           _statusPieChartApi.fetchStatusPieChart(validEmpKey);
 
           // Then set up periodic updates
           _statusPieChartApi.startPeriodicUpdates(validEmpKey,
               interval: const Duration(minutes: 15));
-          if (kDebugMode) {
-            print(
-                "Started periodic updates for status pie chart with validEmpKey: '$validEmpKey'");
-            print("==== STATUS PIE CHART SETUP COMPLETE ====\n");
-          }
+          if (kDebugMode) {}
         } catch (e) {
-          if (kDebugMode) {
-            print("Error starting periodic updates for status pie chart: $e");
-          }
+          if (kDebugMode) {}
           setState(() {
             _statusPieChartError = "Error: $e";
           });
@@ -454,9 +398,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _statusPieChartError = "Employee key not found";
       });
 
-      if (kDebugMode) {
-        print("Failed to start API services: Employee key is null or empty");
-      }
+      if (kDebugMode) {}
     }
   }
 
@@ -477,21 +419,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   // Helper method to find employee key in userData
   String? _findEmployeeKey() {
     if (widget.userData == null) {
-      if (kDebugMode) {
-        print("userData is null");
-      }
+      if (kDebugMode) {}
       return null;
     }
 
     try {
-      if (kDebugMode) {
-        print(
-            "Detailed userData content for debugging: ${json.encode(widget.userData)}");
-      }
+      if (kDebugMode) {}
     } catch (e) {
-      if (kDebugMode) {
-        print("Error encoding userData: $e");
-      }
+      if (kDebugMode) {}
     }
 
     // Fallback to hardcoded empKey for development/testing
@@ -500,9 +435,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Check for emp_key in different possible locations in userData
     if (widget.userData!.containsKey('emp_key')) {
-      if (kDebugMode) {
-        print("Found emp_key directly: ${widget.userData!['emp_key']}");
-      }
+      if (kDebugMode) {}
       foundEmpKey = widget.userData!['emp_key']?.toString();
     }
 
@@ -511,19 +444,13 @@ class _DashboardScreenState extends State<DashboardScreen>
       var userData = widget.userData!['user_data'];
       if (userData is Map) {
         if (userData.containsKey('emp_key')) {
-          if (kDebugMode) {
-            print("Found emp_key in user_data: ${userData['emp_key']}");
-          }
+          if (kDebugMode) {}
           foundEmpKey = userData['emp_key']?.toString();
         } else {
-          if (kDebugMode) {
-            print("user_data exists but doesn't contain emp_key: $userData");
-          }
+          if (kDebugMode) {}
         }
       } else {
-        if (kDebugMode) {
-          print("user_data exists but is not a Map: $userData");
-        }
+        if (kDebugMode) {}
       }
     }
 
@@ -533,22 +460,13 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (responseData is Map && responseData.containsKey('user_data')) {
         var userData = responseData['user_data'];
         if (userData is Map && userData.containsKey('emp_key')) {
-          if (kDebugMode) {
-            print(
-                "Found emp_key in response_data.user_data: ${userData['emp_key']}");
-          }
+          if (kDebugMode) {}
           foundEmpKey = userData['emp_key']?.toString();
         } else {
-          if (kDebugMode) {
-            print(
-                "response_data.user_data exists but doesn't contain emp_key: $userData");
-          }
+          if (kDebugMode) {}
         }
       } else {
-        if (kDebugMode) {
-          print(
-              "response_data exists but doesn't contain user_data or is not a Map: $responseData");
-        }
+        if (kDebugMode) {}
       }
     }
 
@@ -556,14 +474,10 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (foundEmpKey == null && widget.userData!.containsKey('user')) {
       var user = widget.userData!['user'];
       if (user is Map && user.containsKey('emp_key')) {
-        if (kDebugMode) {
-          print("Found emp_key in user: ${user['emp_key']}");
-        }
+        if (kDebugMode) {}
         foundEmpKey = user['emp_key']?.toString();
       } else {
-        if (kDebugMode) {
-          print("user exists but doesn't contain emp_key: $user");
-        }
+        if (kDebugMode) {}
       }
     }
 
@@ -572,31 +486,21 @@ class _DashboardScreenState extends State<DashboardScreen>
       var data = widget.userData!['data'];
       if (data is Map) {
         if (data.containsKey('emp_key')) {
-          if (kDebugMode) {
-            print("Found emp_key in data: ${data['emp_key']}");
-          }
+          if (kDebugMode) {}
           foundEmpKey = data['emp_key']?.toString();
         } else if (data.containsKey('user')) {
           var user = data['user'];
           if (user is Map && user.containsKey('emp_key')) {
-            if (kDebugMode) {
-              print("Found emp_key in data.user: ${user['emp_key']}");
-            }
+            if (kDebugMode) {}
             foundEmpKey = user['emp_key']?.toString();
           } else {
-            if (kDebugMode) {
-              print("data.user exists but doesn't contain emp_key: $user");
-            }
+            if (kDebugMode) {}
           }
         } else {
-          if (kDebugMode) {
-            print("data exists but doesn't contain emp_key or user: $data");
-          }
+          if (kDebugMode) {}
         }
       } else {
-        if (kDebugMode) {
-          print("data exists but is not a Map: $data");
-        }
+        if (kDebugMode) {}
       }
     }
 
@@ -606,33 +510,22 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (rawResponse is Map) {
         var empKey = _findEmpKeyInMap(rawResponse);
         if (empKey != null) {
-          if (kDebugMode) {
-            print("Found emp_key in raw_response: $empKey");
-          }
+          if (kDebugMode) {}
           foundEmpKey = empKey;
         } else {
-          if (kDebugMode) {
-            print(
-                "raw_response exists but emp_key not found in it: $rawResponse");
-          }
+          if (kDebugMode) {}
         }
       } else {
-        if (kDebugMode) {
-          print("raw_response exists but is not a Map: $rawResponse");
-        }
+        if (kDebugMode) {}
       }
     }
 
     // If we've exhausted all known paths, try a deep search in the entire userData object
     if (foundEmpKey == null) {
-      if (kDebugMode) {
-        print("Trying deep search in userData for emp_key...");
-      }
+      if (kDebugMode) {}
       foundEmpKey = _findEmpKeyDeep(widget.userData!);
       if (foundEmpKey != null && foundEmpKey.isNotEmpty) {
-        if (kDebugMode) {
-          print("Found emp_key via deep search: $foundEmpKey");
-        }
+        if (kDebugMode) {}
       }
     }
 
@@ -641,32 +534,22 @@ class _DashboardScreenState extends State<DashboardScreen>
       // Trim any whitespace
       foundEmpKey = foundEmpKey.trim();
 
-      // Print more details about the found key
-      if (kDebugMode) {
-        print(
-            "Found empKey after trim: '$foundEmpKey', length: ${foundEmpKey.length}");
-      }
+      if (kDebugMode) {}
 
       // Only return if it's not empty after trimming
       if (foundEmpKey.isNotEmpty) {
         return foundEmpKey;
       } else {
-        if (kDebugMode) {
-          print(
-              "Found empKey is empty after trimming, will use fallback if in debug mode");
-        }
+        if (kDebugMode) {}
       }
     }
 
     // Always use fallback in debug mode, otherwise return null
     if (kDebugMode) {
-      print("DEVELOPMENT MODE: Using fallback emp_key: $fallbackEmpKey");
       return fallbackEmpKey;
     }
 
-    if (kDebugMode) {
-      print("Missing emp_key in userData: ${widget.userData}");
-    }
+    if (kDebugMode) {}
     return null;
   }
 
@@ -747,6 +630,40 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     }
 
+    return null;
+  }
+
+  // Helper to locate announcements list anywhere inside a nested object
+  List<dynamic>? _locateAnnouncements(dynamic obj, [int depth = 0]) {
+    if (depth > 6) return null;
+    if (obj == null) return null;
+    if (obj is Map) {
+      for (final key in obj.keys) {
+        if (key is String) {
+          final low = key.toLowerCase();
+          if (low == 'announcements' || low == 'announcement') {
+            final val = obj[key];
+            if (val is List) return val;
+            if (val is Map) return [val];
+          }
+        }
+      }
+
+      for (final entry in obj.entries) {
+        final v = entry.value;
+        if (v is Map || v is List) {
+          final res = _locateAnnouncements(v, depth + 1);
+          if (res != null) return res;
+        }
+      }
+    } else if (obj is List) {
+      for (final item in obj) {
+        if (item is Map || item is List) {
+          final res = _locateAnnouncements(item, depth + 1);
+          if (res != null) return res;
+        }
+      }
+    }
     return null;
   }
 
@@ -1049,6 +966,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
 
+          // Announcements Card (separate section below Quick Actions)
+          SliverToBoxAdapter(
+            child: _buildAnnouncementCard(),
+          ),
+
           // Status Pie Chart
           SliverToBoxAdapter(
             child: _buildStatusPieChart(),
@@ -1094,7 +1016,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
         ),
         child: NavigationBar(
-          selectedIndex: _currentIndex,
+          selectedIndex: _currentIndex > 1 ? 0 : _currentIndex,
           onDestinationSelected: (index) {
             if (index == 1) {
               // Navigate to Attendance History screen
@@ -1138,16 +1060,6 @@ class _DashboardScreenState extends State<DashboardScreen>
               icon: Icon(Icons.access_time_outlined),
               selectedIcon: Icon(Icons.access_time),
               label: 'Attendance',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.task_outlined),
-              selectedIcon: Icon(Icons.task),
-              label: 'Tasks',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profile',
             ),
           ],
         ),
@@ -1527,6 +1439,356 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildAnnouncementCard() {
+    try {
+      final List<dynamic>? annListInitial =
+          _locateAnnouncements(widget.userData ?? {});
+
+      return FutureBuilder<Map<String, dynamic>>(
+        future: SharedPreferences.getInstance().then((prefs) {
+          final String baseRaw =
+              prefs.getString('base_api_url') ?? ApiService.defaultBaseUrl;
+          final String baseUrl = baseRaw.endsWith('/')
+              ? baseRaw.substring(0, baseRaw.length - 1)
+              : baseRaw;
+
+          final String? stored = prefs.getString('latest_announcements_json');
+          List<dynamic>? storedList;
+          if (stored != null && stored.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(stored);
+              if (decoded is List) {
+                storedList = decoded;
+              } else if (decoded is Map) {
+                storedList = [decoded];
+              }
+            } catch (_) {}
+          }
+
+          return {'baseUrl': baseUrl, 'storedList': storedList};
+        }),
+        builder: (context, snapshot) {
+          final String baseUrl = (snapshot.data?['baseUrl'] as String?) ??
+              ApiService.defaultBaseUrl;
+          final List<dynamic>? storedList =
+              snapshot.data?['storedList'] as List<dynamic>?;
+
+          List<dynamic> annList = annListInitial ?? [];
+          if (annList.isEmpty && storedList != null && storedList.isNotEmpty) {
+            annList = storedList;
+          }
+
+          if (annList.isEmpty) return const SizedBox.shrink();
+
+          // Build a card for each announcement
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.campaign, color: Color(0xFFFF6B35), size: 20),
+                      SizedBox(width: 6),
+                      Text(
+                        'Announcements',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ...annList.map((item) {
+                  final Map<String, dynamic> ann = item is Map
+                      ? Map<String, dynamic>.from(item)
+                      : {'message': item?.toString() ?? ''};
+
+                  final String docFile = ann['document_file']?.toString() ?? '';
+                  final String imageUrl =
+                      docFile.isNotEmpty ? '$baseUrl/uploads/$docFile' : '';
+                  final String message = ann['message']?.toString() ?? '';
+                  final String uploaderName = ann['emp_name']?.toString() ?? '';
+                  final String date =
+                      ann['announcement_created_at']?.toString() ?? '';
+
+                  return GestureDetector(
+                    onTap: () => _showAnnouncementDetail(ann, baseUrl),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFFF6B35).withAlpha(40),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(8),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          // Thumbnail
+                          imageUrl.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    imageUrl,
+                                    width: 56,
+                                    height: 56,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (ctx, err, st) =>
+                                        _announcementPlaceholder(),
+                                  ),
+                                )
+                              : _announcementPlaceholder(),
+                          const SizedBox(width: 12),
+                          // Text content
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  message,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF333333),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    if (uploaderName.isNotEmpty) ...[
+                                      Icon(Icons.person_outline,
+                                          size: 13, color: Colors.grey[500]),
+                                      const SizedBox(width: 3),
+                                      Flexible(
+                                        child: Text(
+                                          uploaderName,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Tap arrow
+                          Icon(Icons.chevron_right,
+                              color: Colors.grey[400], size: 22),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      return const SizedBox.shrink();
+    }
+  }
+
+  Widget _announcementPlaceholder() {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF6B35).withAlpha(20),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Icon(Icons.campaign, color: Color(0xFFFF6B35), size: 26),
+    );
+  }
+
+  void _showAnnouncementDetail(Map<String, dynamic> ann, String baseUrl) {
+    final String message = ann['message']?.toString() ?? '';
+    final String uploaderName = ann['emp_name']?.toString() ?? '';
+    final String docFile = ann['document_file']?.toString() ?? '';
+    final String imageUrl =
+        docFile.isNotEmpty ? '$baseUrl/uploads/$docFile' : '';
+    final String date = ann['announcement_created_at']?.toString() ?? '';
+    final String fromDate = ann['from_date']?.toString() ?? '';
+    final String toDate = ann['to_date']?.toString() ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF6B35).withAlpha(20),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.campaign,
+                              color: Color(0xFFFF6B35), size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'Announcement',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF333333),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  // Content
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        // Document preview
+                        if (imageUrl.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              imageUrl,
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                              errorBuilder: (ctx, err, st) => Container(
+                                height: 150,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.broken_image,
+                                      size: 48, color: Colors.grey),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (imageUrl.isNotEmpty) const SizedBox(height: 16),
+                        // Full message
+                        Text(
+                          message,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            height: 1.5,
+                            color: Color(0xFF333333),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Meta info
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Column(
+                            children: [
+                              if (uploaderName.isNotEmpty)
+                                _announcementMetaRow(
+                                    Icons.person_outline, 'By', uploaderName),
+                              if (fromDate.isNotEmpty || toDate.isNotEmpty)
+                                _announcementMetaRow(Icons.date_range, 'Period',
+                                    '$fromDate  –  $toDate'),
+                              if (date.isNotEmpty)
+                                _announcementMetaRow(
+                                    Icons.access_time, 'Posted', date),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _announcementMetaRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[600],
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Create a method to build the pie chart
   Widget _buildStatusPieChartWidget() {
     // Random color generator that creates visually pleasing colors
@@ -1588,17 +1850,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (empKey != null) {
         try {
           final baseUrl = await StatusPieChartApi.getBaseApiUrl();
-          if (kDebugMode) {
-            print(
-                "Refreshing status pie chart with URL: $baseUrl, empKey: $empKey");
-          }
+          if (kDebugMode) {}
 
           // Fetch data properly through the main API method
           _statusPieChartApi.fetchStatusPieChart(empKey);
         } catch (e) {
-          if (kDebugMode) {
-            print("Error refreshing status pie chart: $e");
-          }
+          if (kDebugMode) {}
           setState(() {
             _statusPieChartError = "Error: $e";
             _isLoadingStatusPieChart = false;
@@ -2041,11 +2298,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         'icon': Icons.history_toggle_off,
         'color': Colors.green,
       },
-      {
-        'title': 'Requests',
-        'icon': Icons.list_alt,
-        'color': Colors.purple,
-      },
     ];
 
     return GridView.builder(
@@ -2172,16 +2424,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         'title': 'My Team',
         'icon': Icons.group,
         'color': Colors.green,
-      },
-      {
-        'title': 'Activity',
-        'icon': Icons.timeline,
-        'color': Colors.orange,
-      },
-      {
-        'title': 'Notifications',
-        'icon': Icons.notifications,
-        'color': Colors.purple,
       },
     ];
 

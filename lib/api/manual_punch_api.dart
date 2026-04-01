@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ManualPunchApi {
@@ -24,11 +23,6 @@ class ManualPunchApi {
       }
       final apiUrl = '$cleanUrl/api/get_manual_punch_applications_by_emp_keys';
 
-      if (kDebugMode) {
-        print(
-            'Fetching manual punches for emp_codes=${empCodes.join(',')} (sending as emp_key)');
-      }
-
       final joined = empCodes.join(',');
       // API expects `emp_key` parameter (other APIs use this name).
       // Include `emp_code` as well for compatibility.
@@ -43,14 +37,11 @@ class ManualPunchApi {
               body: bodyMap.map((k, v) => MapEntry(k, v.toString())),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form POST error: $e');
-      }
+      } catch (e) {}
 
       // GET fallback
       try {
@@ -59,14 +50,11 @@ class ManualPunchApi {
         final resp = await http.get(Uri.parse(uri), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('GET response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('GET error: $e');
-      }
+      } catch (e) {}
 
       // JSON POST
       try {
@@ -80,18 +68,14 @@ class ManualPunchApi {
               body: jsonEncode(bodyMap),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {'success': false, 'message': 'Failed to fetch manual punches'};
     } catch (e) {
-      if (kDebugMode) print('fetchByEmpCodes error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -107,8 +91,6 @@ class ManualPunchApi {
       final apiUrl =
           '$cleanUrl/api/validate_and_submit_manual_punch_application';
 
-      if (kDebugMode) print('Submitting manual punch: $body');
-
       // Try form POST first
       try {
         final resp = await http
@@ -119,14 +101,11 @@ class ManualPunchApi {
                   .map((k, v) => MapEntry(k, v == null ? '' : v.toString())),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form POST error: $e');
-      }
+      } catch (e) {}
 
       // JSON POST fallback
       try {
@@ -140,18 +119,14 @@ class ManualPunchApi {
               body: jsonEncode(body),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {'success': false, 'message': 'Failed to submit manual punch'};
     } catch (e) {
-      if (kDebugMode) print('submitManualPunchApplication error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }

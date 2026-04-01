@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/foundation.dart';
 import 'package:easytime_online/api/time_card_api.dart';
 
 class TimeCardScreen extends StatefulWidget {
@@ -67,9 +66,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
       widget.empKey,
       month: _selectedMonth,
       year: _selectedYear,
-    )) {
-      if (kDebugMode) print('Using cached attendance data for time card');
-    }
+    )) {}
 
     _timeCardApi.fetchTimeCardData(
       widget.empKey,

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
 
 class GetApproversApi {
   static final GetApproversApi _instance = GetApproversApi._internal();
@@ -24,10 +23,6 @@ class GetApproversApi {
       }
       final apiUrl = '$cleanUrl/api/get_approvers';
 
-      if (kDebugMode) {
-        print('Fetching approvers: $apiUrl with emp_key=$empKey');
-      }
-
       // Try form-encoded POST
       try {
         final resp = await http.post(
@@ -36,17 +31,11 @@ class GetApproversApi {
           body: {'emp_key': empKey},
         ).timeout(const Duration(seconds: 15));
 
-        if (kDebugMode) {
-          print('Form response: ${resp.statusCode} ${resp.body}');
-        }
-
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form request error: $e');
-      }
+      } catch (e) {}
 
       // Try GET with query param as fallback
       try {
@@ -54,14 +43,11 @@ class GetApproversApi {
         final resp = await http.get(Uri.parse(directUrl), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Direct GET: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Direct GET error: $e');
-      }
+      } catch (e) {}
 
       // Try JSON POST
       try {
@@ -76,18 +62,14 @@ class GetApproversApi {
             )
             .timeout(const Duration(seconds: 15));
 
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {'success': false, 'message': 'Failed to fetch approvers'};
     } catch (e) {
-      if (kDebugMode) print('fetchApprovers error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }

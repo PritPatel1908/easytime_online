@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:easytime_online/api/today_punches_api.dart';
 import 'package:image_picker/image_picker.dart';
@@ -80,7 +79,6 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
       // Use default API key configured in LocationService
       final res = await LocationService.getLocationDetails();
       if (res['error'] != null) {
-        if (kDebugMode) print('Location error: ${res['error']}');
         return;
       }
       final address = (res['address'] as String?) ?? '';
@@ -94,9 +92,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
           _locationController.text = '$lat,$lng';
         }
       });
-    } catch (e) {
-      if (kDebugMode) print('Fetch location failed: $e');
-    }
+    } catch (e) {}
   }
 
   @override
@@ -138,7 +134,6 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
         // Photo captured — do not show toast as per user preference.
       }
     } catch (e) {
-      if (kDebugMode) print('Error capturing photo: $e');
       _showMessage('Failed to capture photo');
     }
   }
@@ -168,7 +163,6 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
         _isCameraInitialized = true;
       });
     } catch (e) {
-      if (kDebugMode) print('Camera init error: $e');
       // leave fallback to image_picker
       setState(() {
         _isCameraInitialized = false;
@@ -187,9 +181,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
         });
         return;
       }
-    } catch (e) {
-      if (kDebugMode) print('Preview capture failed: $e');
-    }
+    } catch (e) {}
     // fallback to image picker flow
     await _capturePhoto();
   }
@@ -255,9 +247,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
               (extracted['out']?.isNotEmpty ?? false)) return extracted;
         }
       }
-    } catch (e) {
-      if (kDebugMode) print('Error extracting punches: $e');
-    }
+    } catch (e) {}
 
     return {'in': null, 'out': null};
   }
@@ -309,38 +299,27 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
         'enc_iv': encIv,
       };
 
-      if (kDebugMode) {
-        print('Outgoing punch parameters:');
+      if (false) {
         bodyMap.forEach((key, value) {
           try {
             if (key == 'photo' &&
                 value != null &&
                 value.toString().length > 100) {
               final v = value.toString();
-              print(
-                  '- $key: <base64 length=${v.length} prefix=${v.substring(0, 100)}...>');
-            } else {
-              print('- $key: $value');
-            }
-          } catch (e) {
-            print('- $key: <error printing value>');
-          }
+            } else {}
+          } catch (e) {}
         });
       }
 
       // Try form-encoded POST first (some endpoints expect this)
       try {
-        if (kDebugMode) print('Trying form-encoded POST to $apiUrl');
         final resp = await http
             .post(apiUrl,
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                 body: bodyMap)
             .timeout(const Duration(seconds: 60));
 
-        if (kDebugMode) {
-          print('Form post status: ${resp.statusCode}');
-          print('Form post body: ${resp.body}');
-        }
+        if (false) {}
 
         if (resp.statusCode == 200) {
           final resJson = jsonDecode(resp.body);
@@ -356,28 +335,21 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
             return;
           } else {
             _showMessage(resJson['message']?.toString() ?? 'Submit failed');
-            if (kDebugMode) print('Server responded with failure: $resJson');
           }
         } else {
           _showMessage('Submit failed: ${resp.statusCode}');
         }
-      } catch (e) {
-        if (kDebugMode) print('Form post error: $e');
-      }
+      } catch (e) {}
 
       // Fallback: Try JSON POST
       try {
-        if (kDebugMode) print('Trying JSON POST to $apiUrl');
         final resp2 = await http
             .post(apiUrl,
                 headers: {'Content-Type': 'application/json'},
                 body: jsonEncode(bodyMap))
             .timeout(const Duration(seconds: 60));
 
-        if (kDebugMode) {
-          print('JSON post status: ${resp2.statusCode}');
-          print('JSON post body: ${resp2.body}');
-        }
+        if (false) {}
 
         if (resp2.statusCode == 200) {
           final resJson = jsonDecode(resp2.body);
@@ -393,18 +365,14 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
             return;
           } else {
             _showMessage(resJson['message']?.toString() ?? 'Submit failed');
-            if (kDebugMode) print('Server responded with failure: $resJson');
           }
         } else {
           _showMessage('Submit failed: ${resp2.statusCode}');
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON post error: $e');
-      }
+      } catch (e) {}
 
       // If both form and JSON attempts failed due to timeout/network, try multipart streaming upload
       try {
-        if (kDebugMode) print('Trying multipart POST to $apiUrl');
         final request = http.MultipartRequest('POST', apiUrl);
         // add fields
         bodyMap.forEach((k, v) {
@@ -422,10 +390,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
         final streamedResp =
             await request.send().timeout(const Duration(seconds: 60));
         final resp3 = await http.Response.fromStream(streamedResp);
-        if (kDebugMode) {
-          print('Multipart post status: ${resp3.statusCode}');
-          print('Multipart post body: ${resp3.body}');
-        }
+        if (false) {}
 
         if (resp3.statusCode == 200) {
           final resJson = jsonDecode(resp3.body);
@@ -441,19 +406,15 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
             return;
           } else {
             _showMessage(resJson['message']?.toString() ?? 'Submit failed');
-            if (kDebugMode) print('Server responded with failure: $resJson');
           }
         } else {
           _showMessage('Submit failed: ${resp3.statusCode}');
         }
-      } catch (e) {
-        if (kDebugMode) print('Multipart post error: $e');
-      }
+      } catch (e) {}
 
       _showMessage('Submit error');
     } catch (e) {
       _showMessage('Submit exception');
-      if (kDebugMode) print('Submit exception: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -519,9 +480,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
           }
         }
       }
-    } catch (e) {
-      if (kDebugMode) print('Error parsing success flag: $e');
-    }
+    } catch (e) {}
     return false;
   }
 

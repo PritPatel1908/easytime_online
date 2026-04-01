@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TimeCardApi {
@@ -53,35 +52,18 @@ class TimeCardApi {
   // Method to fetch time card data
   Future<void> fetchTimeCardData(String empKey,
       {String? month, String? year, bool forceRefresh = false}) async {
-    if (kDebugMode) {
-      print('--------------------------------------------');
-      print('TIME CARD API CALL STARTED');
-      print(
-          'Fetching time card data for empKey: "$empKey", month: $month, year: $year');
-    }
-
     // Validate empKey
     if (empKey.isEmpty) {
-      if (kDebugMode) {
-        print('Warning: Empty employee key provided to fetchTimeCardData');
-        _provideMockDataForTesting();
-        return;
-      } else {
-        _timeCardDataController.add({
-          'success': false,
-          'message': 'Employee key is required',
-        });
-        return;
-      }
+      _timeCardDataController.add({
+        'success': false,
+        'message': 'Employee key is required',
+      });
+      return;
     }
 
     // Check cache first if not forcing refresh
     final cacheKey = _getCacheKey(empKey, month: month, year: year);
     if (!forceRefresh && _cachedData.containsKey(cacheKey) && _hasCachedData) {
-      if (kDebugMode) {
-        print('Using cached time card data');
-      }
-
       // Use cached data
       _timeCardDataController.add(_cachedData[cacheKey]);
       return;
@@ -114,17 +96,8 @@ class TimeCardApi {
         queryParams['year'] = year;
       }
 
-      // Log the request details
-      if (kDebugMode) {
-        print('Fetching time card data from: $apiUrl');
-        print('Request parameters: $queryParams');
-      }
-
       // Make GET request with URL parameters
       final uri = Uri.parse(apiUrl).replace(queryParameters: queryParams);
-      if (kDebugMode) {
-        print('Making GET request to: $uri');
-      }
 
       var response = await http.get(
         uri,
@@ -135,11 +108,6 @@ class TimeCardApi {
 
       // If GET fails, try POST with JSON
       if (response.statusCode >= 400) {
-        if (kDebugMode) {
-          print(
-              'GET request failed with status ${response.statusCode}, trying POST with JSON');
-        }
-
         response = await http
             .post(
               Uri.parse(apiUrl),
@@ -154,11 +122,6 @@ class TimeCardApi {
 
       // If JSON POST fails, try form-encoded POST
       if (response.statusCode >= 400) {
-        if (kDebugMode) {
-          print(
-              'JSON POST failed with status ${response.statusCode}, trying form-encoded');
-        }
-
         response = await http
             .post(
               Uri.parse(apiUrl),
@@ -171,28 +134,13 @@ class TimeCardApi {
             .timeout(const Duration(seconds: 15));
       }
 
-      if (kDebugMode) {
-        print('API response status code: ${response.statusCode}');
-        print('API response body: ${response.body}');
-      }
-
       if (response.statusCode == 200) {
         final responseBody = response.body;
 
         try {
           final data = json.decode(responseBody);
 
-          if (kDebugMode) {
-            print('Parsed JSON data: $data');
-          }
-
           if (data['status'] == true && data.containsKey('attendance_data')) {
-            // Successfully fetched data
-            if (kDebugMode) {
-              print(
-                  'Successfully fetched time card data: ${data['attendance_data']}');
-            }
-
             final resultData = {
               'success': true,
               'attendance_data': data['attendance_data'],
@@ -206,12 +154,6 @@ class TimeCardApi {
             // Send data to stream
             _timeCardDataController.add(resultData);
           } else {
-            // API returned an error
-            if (kDebugMode) {
-              print(
-                  'API returned error: ${data['message'] ?? 'Unknown error'}');
-            }
-
             final resultData = {
               'success': false,
               'message': data['message'] ?? 'Failed to load time card data',
@@ -222,11 +164,6 @@ class TimeCardApi {
             _timeCardDataController.add(resultData);
           }
         } catch (e) {
-          if (kDebugMode) {
-            print('Error parsing JSON response: $e');
-            print('Response body: $responseBody');
-          }
-
           _timeCardDataController.add({
             'success': false,
             'message':
@@ -234,38 +171,18 @@ class TimeCardApi {
           });
         }
       } else {
-        if (kDebugMode) {
-          print(
-              'Failed to load time card data. Status code: ${response.statusCode}');
-          print('Response body: ${response.body}');
-
-          // For development only: Return mock data if the API fails
-          _provideMockDataForTesting();
-          return;
-        }
-
-        // HTTP error (only in production)
+        // HTTP error
         _timeCardDataController.add({
           'success': false,
           'message': 'Server error: ${response.statusCode}',
         });
       }
-
-      if (kDebugMode) {
-        print('TIME CARD API CALL COMPLETED');
-        print('--------------------------------------------');
-      }
     } catch (e) {
       // Network or other error
-      if (kDebugMode) {
-        print('Error connecting to server for time card: $e');
-        _provideMockDataForTesting();
-      } else {
-        _timeCardDataController.add({
-          'success': false,
-          'message': 'Network error: Unable to connect to server',
-        });
-      }
+      _timeCardDataController.add({
+        'success': false,
+        'message': 'Network error: Unable to connect to server',
+      });
     }
   }
 
@@ -284,91 +201,18 @@ class TimeCardApi {
     _periodicTimer = Timer.periodic(interval, (_) {
       fetchTimeCardData(empKey, month: month, year: year);
     });
-
-    if (kDebugMode) {
-      print('Started periodic updates for time card with interval: $interval');
-    }
   }
 
   // Method to stop periodic updates
   void stopPeriodicUpdates() {
     _periodicTimer?.cancel();
     _periodicTimer = null;
-
-    if (kDebugMode) {
-      print('Stopped periodic updates for time card');
-    }
   }
 
   // Method to clear cache
   void clearCache() {
     _cachedData.clear();
     _hasCachedData = false;
-    if (kDebugMode) {
-      print('Time card cache cleared');
-    }
-  }
-
-  // Method to provide mock data for testing
-  void _provideMockDataForTesting() {
-    if (!kDebugMode) return;
-
-    if (kDebugMode) {
-      print('Providing mock time card data for testing');
-    }
-
-    // Get current month and year
-    final now = DateTime.now();
-    final currentMonth = now.month;
-    final currentYear = now.year;
-
-    // Create mock attendance list for the current month (list of day objects)
-    final days = List.generate(30, (index) {
-      final day = index + 1;
-      final status = _getRandomStatus();
-      return {
-        'date':
-            '${day.toString().padLeft(2, '0')}-${currentMonth.toString().padLeft(2, '0')}-$currentYear',
-        'shift': status == 'PP' ? 'GN' : null,
-        'in_time': status == 'PP' ? '09:00 AM' : null,
-        'out_time': status == 'PP' ? '06:00 PM' : null,
-        'late_minutes': status == 'PP' ? 0 : (status == 'AA' ? 120 : 30),
-        'early_minutes': status == 'PP' ? 0 : (status == 'AA' ? 300 : 60),
-        'total_working_minutes': status == 'PP' ? 480 : 0,
-        'status': status,
-        'remarks': null,
-      };
-    });
-
-    _timeCardDataController.add({
-      'success': true,
-      'attendance_data': days,
-      'raw_response': {'attendance_data': days},
-    });
-  }
-
-  // Helper method to get random status for mock data
-  String _getRandomStatus() {
-    final statuses = ['PP', 'AA', 'WO', 'HO', 'LE'];
-    return statuses[DateTime.now().millisecond % statuses.length];
-  }
-
-  // Helper method to get status name
-  String _getStatusName(String code) {
-    switch (code) {
-      case 'PP':
-        return 'Present';
-      case 'AA':
-        return 'Absent';
-      case 'WO':
-        return 'Week Off';
-      case 'HO':
-        return 'Holiday';
-      case 'LE':
-        return 'Leave';
-      default:
-        return code;
-    }
   }
 
   // Clean up resources

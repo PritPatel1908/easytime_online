@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ManualAttendanceApi {
@@ -24,9 +23,6 @@ class ManualAttendanceApi {
       final apiUrl =
           '$cleanUrl/api/get_manual_attendance_applications_by_emp_keys';
 
-      if (kDebugMode)
-        print('Fetching manual attendance for emp_codes=${empCodes.join(',')}');
-
       final joined = empCodes.join(',');
       final bodyMap = {'emp_key': joined, 'employee_keys': joined};
 
@@ -37,14 +33,11 @@ class ManualAttendanceApi {
                 headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                 body: bodyMap.map((k, v) => MapEntry(k, v.toString())))
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form POST error: $e');
-      }
+      } catch (e) {}
 
       // GET fallback
       try {
@@ -53,14 +46,11 @@ class ManualAttendanceApi {
         final resp = await http.get(Uri.parse(uri), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('GET response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('GET error: $e');
-      }
+      } catch (e) {}
 
       // JSON POST
       try {
@@ -72,18 +62,14 @@ class ManualAttendanceApi {
                 },
                 body: jsonEncode(bodyMap))
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {'success': false, 'message': 'Failed to fetch manual attendance'};
     } catch (e) {
-      if (kDebugMode) print('fetchByEmpCodes error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
@@ -98,8 +84,6 @@ class ManualAttendanceApi {
       final apiUrl =
           '$cleanUrl/api/validate_and_submit_manual_attendance_application';
 
-      if (kDebugMode) print('Submitting manual attendance: $body');
-
       // Try form POST
       try {
         final resp = await http
@@ -108,14 +92,11 @@ class ManualAttendanceApi {
                 body: body
                     .map((k, v) => MapEntry(k, v == null ? '' : v.toString())))
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('Form POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form POST error: $e');
-      }
+      } catch (e) {}
 
       // JSON fallback
       try {
@@ -127,21 +108,17 @@ class ManualAttendanceApi {
                 },
                 body: jsonEncode(body))
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {
         'success': false,
         'message': 'Failed to submit manual attendance'
       };
     } catch (e) {
-      if (kDebugMode) print('submitManualAttendanceApplication error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }

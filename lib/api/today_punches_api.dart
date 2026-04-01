@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
 
 class TodayPunchesApi {
   static final TodayPunchesApi _instance = TodayPunchesApi._internal();
@@ -74,13 +73,9 @@ class TodayPunchesApi {
         var clean = candidate;
         if (clean.endsWith('/')) clean = clean.substring(0, clean.length - 1);
         final probeUrl = '$clean/';
-        if (kDebugMode) print('Probing base API URL: $probeUrl');
         final resp = await http
             .get(Uri.parse(probeUrl))
             .timeout(const Duration(seconds: 3));
-        if (kDebugMode) {
-          print('Probe status for $candidate: ${resp.statusCode}');
-        }
         // Accept any response (200-499) as indication host resolved; prefer 200
         if (resp.statusCode >= 200 && resp.statusCode < 500) {
           // Save working URL (without trailing slash)
@@ -89,7 +84,6 @@ class TodayPunchesApi {
           return saveUrl;
         }
       } catch (e) {
-        if (kDebugMode) print('Probe failed for $candidate: $e');
         // continue to next candidate
       }
     }
@@ -109,15 +103,8 @@ class TodayPunchesApi {
 
       final apiUrl = '$cleanUrl/api/today_punches';
 
-      if (kDebugMode) {
-        print('Fetching today punches from: $apiUrl with emp_key: $empKey');
-      }
-
       // Try form-encoded request first
       try {
-        if (kDebugMode) {
-          print('Trying form-encoded request with emp_key=$empKey');
-        }
         final formResponse = await http.post(
           Uri.parse(apiUrl),
           headers: {
@@ -127,11 +114,6 @@ class TodayPunchesApi {
             'emp_key': empKey,
           },
         ).timeout(const Duration(seconds: 15));
-
-        if (kDebugMode) {
-          print('Form response status: ${formResponse.statusCode}');
-          print('Form response body: ${formResponse.body}');
-        }
 
         if (formResponse.statusCode == 200) {
           try {
@@ -147,28 +129,18 @@ class TodayPunchesApi {
                 'raw_response': data,
               };
             }
-          } catch (e) {
-            if (kDebugMode) print('Error parsing form response: $e');
-          }
+          } catch (e) {}
         }
-      } catch (e) {
-        if (kDebugMode) print('Error with form request: $e');
-      }
+      } catch (e) {}
 
       // Try direct GET with emp_key as query parameter
       try {
         final directUrl = '$apiUrl?emp_key=$empKey';
-        if (kDebugMode) print('Trying direct URL request: $directUrl');
 
         final directResponse = await http.get(
           Uri.parse(directUrl),
           headers: {'Accept': 'application/json'},
         ).timeout(const Duration(seconds: 15));
-
-        if (kDebugMode) {
-          print('Direct response status: ${directResponse.statusCode}');
-          print('Direct response body: ${directResponse.body}');
-        }
 
         if (directResponse.statusCode == 200) {
           try {
@@ -184,17 +156,12 @@ class TodayPunchesApi {
                 'raw_response': data,
               };
             }
-          } catch (e) {
-            if (kDebugMode) print('Error parsing direct response: $e');
-          }
+          } catch (e) {}
         }
-      } catch (e) {
-        if (kDebugMode) print('Error with direct URL request: $e');
-      }
+      } catch (e) {}
 
       // Try JSON POST
       try {
-        if (kDebugMode) print('Trying JSON POST with emp_key=$empKey');
         final jsonResponse = await http
             .post(
               Uri.parse(apiUrl),
@@ -205,11 +172,6 @@ class TodayPunchesApi {
               body: jsonEncode({'emp_key': empKey}),
             )
             .timeout(const Duration(seconds: 15));
-
-        if (kDebugMode) {
-          print('JSON response status: ${jsonResponse.statusCode}');
-          print('JSON response body: ${jsonResponse.body}');
-        }
 
         if (jsonResponse.statusCode == 200) {
           try {
@@ -231,7 +193,6 @@ class TodayPunchesApi {
               'raw_response': data
             };
           } catch (e) {
-            if (kDebugMode) print('Error parsing JSON response: $e');
             return {
               'success': false,
               'message': 'Parse error',
@@ -239,35 +200,20 @@ class TodayPunchesApi {
             };
           }
         }
-      } catch (e) {
-        if (kDebugMode) print('Error with JSON request: $e');
-      }
+      } catch (e) {}
 
       return {
         'success': false,
         'message': 'Failed to fetch today punches after attempts'
       };
     } catch (e) {
-      if (kDebugMode) print('Error connecting to server: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
 
-  /// Fetch once and print the raw response to debug console.
   Future<void> fetchAndLog(String empKey) async {
     try {
       final res = await fetchTodayPunches(empKey);
-      if (kDebugMode) {
-        print('=== TODAY_PUNCHES DEBUG START ===');
-        print('EMP_KEY: $empKey');
-        print('RESULT: $res');
-        if (res.containsKey('raw_response')) {
-          print('RAW_RESPONSE: ${res['raw_response']}');
-        }
-        print('=== TODAY_PUNCHES DEBUG END ===');
-      }
-    } catch (e) {
-      if (kDebugMode) print('Error in fetchAndLog: $e');
-    }
+    } catch (e) {}
   }
 }

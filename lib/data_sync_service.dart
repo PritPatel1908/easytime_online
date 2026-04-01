@@ -4,7 +4,6 @@ import 'package:easytime_online/api/monthly_work_hours_api.dart';
 import 'package:easytime_online/api/weekly_work_hours_api.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
 import 'package:easytime_online/api/attendance_history_api.dart';
-import 'package:flutter/foundation.dart';
 
 class DataSyncService {
   final MonthlyWorkHoursApi _monthlyWorkHoursApi = MonthlyWorkHoursApi();
@@ -31,15 +30,10 @@ class DataSyncService {
   // Load data from local storage
   Future<void> _loadDataFromLocalStorage() async {
     try {
-      if (kDebugMode) {
-        print('Loading data from local storage');
-      }
       // Load all data types from local storage
       // This will be used to display data immediately while API calls are in progress
     } catch (e) {
-      if (kDebugMode) {
-        print('Error loading data from local storage: $e');
-      }
+      // ignore
     }
   }
 
@@ -68,21 +62,15 @@ class DataSyncService {
           String hours = result['work_hours'].toString();
           // Save to local storage
           await DataStorageService.saveMonthlyWorkHours(hours);
-          if (kDebugMode) {
-            print('Monthly work hours updated: $hours');
-          }
+          // debug removed
         }
       }, onError: (error) {
-        if (kDebugMode) {
-          print('Error fetching monthly work hours: $error');
-        }
+        // debug removed
       });
 
       return cachedHours ?? "00:00";
     } catch (e) {
-      if (kDebugMode) {
-        print('Error in monthly work hours sync: $e');
-      }
+      // debug removed
       return "00:00";
     }
   }
@@ -103,21 +91,15 @@ class DataSyncService {
           String hours = result['work_hours'].toString();
           // Save to local storage
           await DataStorageService.saveWeeklyWorkHours(hours);
-          if (kDebugMode) {
-            print('Weekly work hours updated: $hours');
-          }
+          // debug removed
         }
       }, onError: (error) {
-        if (kDebugMode) {
-          print('Error fetching weekly work hours: $error');
-        }
+        // debug removed
       });
 
       return cachedHours ?? "00:00";
     } catch (e) {
-      if (kDebugMode) {
-        print('Error in weekly work hours sync: $e');
-      }
+      // debug removed
       return "00:00";
     }
   }
@@ -136,20 +118,14 @@ class DataSyncService {
           _statusPieChartApi.statusDataStream.listen((data) async {
         // Save to local storage
         await DataStorageService.saveStatusPieChartData(data);
-        if (kDebugMode) {
-          print('Status pie chart data updated');
-        }
+        // debug removed
       }, onError: (error) {
-        if (kDebugMode) {
-          print('Error fetching status pie chart data: $error');
-        }
+        // debug removed
       });
 
       return cachedData;
     } catch (e) {
-      if (kDebugMode) {
-        print('Error in status pie chart data sync: $e');
-      }
+      // debug removed
       return null;
     }
   }
@@ -170,21 +146,15 @@ class DataSyncService {
         if (data['success'] == true && data.containsKey('attendance')) {
           List<dynamic> attendanceList = data['attendance'];
           await DataStorageService.saveAttendanceHistory(attendanceList);
-          if (kDebugMode) {
-            print('Attendance history updated');
-          }
+          // debug removed
         }
       }, onError: (error) {
-        if (kDebugMode) {
-          print('Error fetching attendance history: $error');
-        }
+        // debug removed
       });
 
       return cachedData;
     } catch (e) {
-      if (kDebugMode) {
-        print('Error in attendance history sync: $e');
-      }
+      // debug removed
       return null;
     }
   }

@@ -75,14 +75,30 @@ class _SplashScreenState extends State<SplashScreen>
                   opacity: _animation.value,
                   child: Transform.translate(
                     offset: Offset(0, 20 * (1 - _animation.value)),
-                    child: const Text(
-                      "INDIAN INFOTECH",
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2.0,
-                        color: Colors.blueAccent,
-                      ),
+                    child: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "INDIAN INFOTECH",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2.0,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
+                        Text(
+                          "The Solution People",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2.0,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

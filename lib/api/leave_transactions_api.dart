@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
 
 class LeaveTransactionsApi {
   static final LeaveTransactionsApi _instance =
@@ -28,10 +27,7 @@ class LeaveTransactionsApi {
       }
       final apiUrl = '$cleanUrl/api/leave_transactions';
 
-      if (kDebugMode) {
-        print(
-            'Fetching leave transactions: $apiUrl emp_key=$empKey, fy=$financialYearKey, lt=$leaveTypeKey');
-      }
+      // Production: no debug-only behavior
 
       final bodyMap = {
         'emp_key': empKey,
@@ -49,14 +45,11 @@ class LeaveTransactionsApi {
             )
             .timeout(const Duration(seconds: 15));
 
-        if (kDebugMode) print('Form response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('Form request error: $e');
-      }
+      } catch (e) {}
 
       // Fallback GET
       try {
@@ -65,14 +58,11 @@ class LeaveTransactionsApi {
         final resp = await http.get(Uri.parse(directUrl), headers: {
           'Accept': 'application/json'
         }).timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('GET response: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('GET error: $e');
-      }
+      } catch (e) {}
 
       // JSON POST
       try {
@@ -86,21 +76,17 @@ class LeaveTransactionsApi {
               body: jsonEncode(bodyMap),
             )
             .timeout(const Duration(seconds: 15));
-        if (kDebugMode) print('JSON POST: ${resp.statusCode} ${resp.body}');
         if (resp.statusCode == 200) {
           final Map<String, dynamic> data = json.decode(resp.body);
           return {'success': true, 'data': data};
         }
-      } catch (e) {
-        if (kDebugMode) print('JSON POST error: $e');
-      }
+      } catch (e) {}
 
       return {
         'success': false,
         'message': 'Failed to fetch leave transactions'
       };
     } catch (e) {
-      if (kDebugMode) print('fetchLeaveTransactions error: $e');
       return {'success': false, 'message': e.toString()};
     }
   }

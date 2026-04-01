@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async'; // Added for Timer
-import 'package:flutter/foundation.dart'; // Added for kDebugMode
 
 // Utility class to hide system navigation bar
 class SystemUIUtil {
@@ -323,8 +322,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final result = await ApiService.verifyClientCode(savedCode);
 
         if (result['success']) {
+          // Prefer the previously saved base URL (from last successful login)
+          // over the verify response, since it points to the actual server used.
+          final String resolvedUrl = savedBaseApiUrl ?? result['api_url'];
           setState(() {
-            clientApiUrl = result['api_url'];
+            clientApiUrl = resolvedUrl;
           });
 
           // Test if the login URL is accessible
@@ -528,14 +530,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // If login successful, navigate to dashboard
       if (loginSuccess) {
-        // Save credentials if remember me is checked
-        if (rememberMe) {
+        // Always persist the base API URL used for this login
+        // so dashboard/announcements use the correct server
+        {
           final SharedPreferences prefs = await SharedPreferences.getInstance();
-          await prefs.setString('user_code', username);
-          await prefs.setString('user_password', password);
-          await prefs.setBool('remember_me', rememberMe);
           if (clientApiUrl != null) {
             await prefs.setString('base_api_url', clientApiUrl!);
+          }
+          // Save credentials if remember me is checked
+          if (rememberMe) {
+            await prefs.setString('user_code', username);
+            await prefs.setString('user_password', password);
+            await prefs.setBool('remember_me', rememberMe);
           }
         }
 
@@ -543,11 +549,6 @@ class _HomeScreenState extends State<HomeScreen> {
         Map<String, dynamic> userData = {};
         if (result['response_data'].containsKey('user_data')) {
           userData = result['response_data']['user_data'];
-        }
-
-        // Debug print to see if userData contains emp_key
-        if (kDebugMode) {
-          print("DEBUG - userData extracted: $userData");
         }
 
         // Ensure emp_key is set (handle different API response formats)
@@ -567,21 +568,31 @@ class _HomeScreenState extends State<HomeScreen> {
           empKey = _findEmpKeyRecursively(result);
         }
 
-        // If we still don't have emp_key, use a default for testing
+        // If we still don't have emp_key, do not use development defaults
         if (empKey == null || empKey.isEmpty) {
-          // WARNING: Only for development!
-          empKey = "1234"; // Replace with your actual test emp_key if needed
-          if (kDebugMode) {
-            print("WARNING: Using default emp_key for testing: $empKey");
-          }
-        }
-
-        if (kDebugMode) {
-          print("DEBUG - Final empKey to use: $empKey");
+          // No emp_key available; continue without assigning test defaults.
         }
 
         // Ensure userData has emp_key explicitly set
         userData['emp_key'] = empKey;
+
+        // Extract announcements from response_data and add to userData
+        try {
+          final respData = result['response_data'];
+          if (respData is Map && respData.containsKey('announcements')) {
+            final ann = respData['announcements'];
+            if (ann is List && ann.isNotEmpty) {
+              userData['announcements'] = ann;
+
+              // Persist announcements as fallback for dashboard
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString(
+                    'latest_announcements_json', jsonEncode(ann));
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
 
         // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(
@@ -770,111 +781,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return false;
     }
   }
-
-  // Method removed to fix unused element warning
-
-  // Method removed to fix unused element warning
-
-  // Method removed to fix unused element warning
-
-  // Execute PHP API login with detailed response
-  // Removed to fix unused element warning
-  // void ___executePhpApiLogin(
-  //     String apiUrl, String username, String password) async {
-  //   // Dismiss keyboard
-  //   FocusScope.of(context).unfocus();
-  //
-  //   // Store context before async gap
-  //   final BuildContext currentContext = context;
-  //
-  //   // Show loading indicator
-  //   setState(() {
-  //     buttonText = 'SENDING...';
-  //   });
-  //
-  //   try {
-  //     // Call our new PHP API login method
-  //     final result =
-  //         await ApiService.loginWithPhpApi(apiUrl, username, password);
-  //
-  //     if (!mounted) return;
-  //
-  //     setState(() {
-  //       buttonText = 'LOGIN';
-  //     });
-  //
-  //     // Determine if login was successful
-  //     bool isSuccess = result['success'] == true;
-  //     String message = result['message'] ?? 'Unknown response';
-  //
-  //     // Show toast message
-  //     _safelyShowToast(message, isSuccess: isSuccess);
-  //
-  //     // If login successful, navigate to dashboard after a short delay
-  //     if (isSuccess) {
-  //       // Extract user data from response
-  //       Map<String, dynamic> userData = {};
-  //       if (result['response_data'].containsKey('user_data')) {
-  //         userData = result['response_data']['user_data'];
-  //       }
-  //
-  //       // Debug print to see if userData contains emp_key
-  //       if (kDebugMode) {
-  //         print("DEBUG - userData extracted: $userData");
-  //       }
-  //
-  //       // Ensure emp_key is set (handle different API response formats)
-  //       String? empKey;
-  //
-  //       // Try to extract emp_key from different locations
-  //       if (userData.containsKey('emp_key')) {
-  //         empKey = userData['emp_key']?.toString();
-  //       } else if (result['response_data'].containsKey('emp_key')) {
-  //         empKey = result['response_data']['emp_key']?.toString();
-  //       } else if (result.containsKey('emp_key')) {
-  //         empKey = result['emp_key']?.toString();
-  //       }
-  //
-  //       // If we still don't have emp_key, try to find it recursively
-  //       if (empKey == null || empKey.isEmpty) {
-  //         empKey = _findEmpKeyRecursively(result);
-  //       }
-  //
-  //       // If we still don't have emp_key, use a default for testing
-  //       if (empKey == null || empKey.isEmpty) {
-  //         // WARNING: Only for development!
-  //         empKey = "1234"; // Replace with your actual test emp_key if needed
-  //         if (kDebugMode) {
-  //           print("WARNING: Using default emp_key for testing: $empKey");
-  //         }
-  //       }
-  //
-  //       if (kDebugMode) {
-  //         print("DEBUG - Final empKey to use: $empKey");
-  //       }
-  //
-  //       // Ensure userData has emp_key explicitly set
-  //       userData['emp_key'] = empKey;
-  //
-  //       // Navigate to dashboard
-  //       _navigateToDashboardAfterDelay(
-  //         currentContext,
-  //         userData['emp_name'] ?? username,
-  //         {
-  //           'user_data': userData,
-  //           'emp_key': empKey, // Add explicit emp_key at top level
-  //         },
-  //       );
-  //     }
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //
-  //     setState(() {
-  //       buttonText = 'LOGIN';
-  //     });
-  //     _safelyShowToast('Error: ${e.toString()}', isSuccess: false);
-  //   }
-  // }
 
   // Helper method to recursively find emp_key in a complex object
   String? _findEmpKeyRecursively(dynamic obj, [int depth = 0]) {
@@ -1163,7 +1069,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(
+          widget.title,
+          style: const TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF1E2A38),
         foregroundColor: Colors.white,
         centerTitle: true,

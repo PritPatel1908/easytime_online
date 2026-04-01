@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter/foundation.dart'; // Added for kDebugMode
 import 'package:easytime_online/api/attendance_history_api.dart';
 import 'package:easytime_online/ui/dashboard_screen.dart';
-import 'package:easytime_online/main_navigation.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   final String empKey;
@@ -102,9 +100,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
       if (cachedData != null && cachedData['success'] == true) {
         // We don't need to set state here as the stream listener will handle it
-        if (kDebugMode) {
-          print("Using cached attendance history data");
-        }
       }
     }
 
@@ -374,19 +369,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
               );
               return;
             }
-
-            // For other tabs open the main navigation on that tab
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => MainNavigation(
-                  empKey: widget.empKey,
-                  initialIndex: index,
-                  userData: widget.userData,
-                  userName: widget.userName,
-                ),
-              ),
-            );
           },
           backgroundColor: Colors.white,
           elevation: 0,
@@ -401,16 +383,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
               icon: Icon(Icons.access_time_outlined),
               selectedIcon: Icon(Icons.access_time),
               label: 'Attendance',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.task_outlined),
-              selectedIcon: Icon(Icons.task),
-              label: 'Tasks',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profile',
             ),
           ],
         ),

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:easytime_online/api/get_approvers_api.dart';
+import 'package:easytime_online/api/pending_requests_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApproverScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _ApproverScreenState extends State<ApproverScreen>
   bool _isLoading = true;
   String _errorMessage = '';
   List<Map<String, dynamic>> _requests = [];
+  // Keys of selected request entities (endorsement_flow_key)
+  final Set<String> _selectedRequests = <String>{};
   String _searchQuery = '';
   String _filterType = 'all'; // 'all', 'individual', 'group'
 
@@ -148,6 +151,232 @@ class _ApproverScreenState extends State<ApproverScreen>
     }
   }
 
+  void _toggleSelection(String key, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedRequests.add(key);
+      } else {
+        _selectedRequests.remove(key);
+      }
+    });
+  }
+
+  Future<void> _approveSelected() async {
+    final count = _selectedRequests.length;
+    final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+                  title: const Text('Confirm Approve'),
+                  content: Text('Approve $count selected request(s)?'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Cancel')),
+                    TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Approve')),
+                  ],
+                )) ??
+        false;
+    if (!confirmed) return;
+
+    // Group selected endorsement keys by entity_name and call batch API
+    final Map<String, List<String>> groups = {};
+    for (int i = 0; i < _requests.length; i++) {
+      final r = _requests[i];
+      String endorsementKey = (r['endorsement_flow_key'] ?? '').toString();
+      if (endorsementKey.trim().isEmpty) endorsementKey = 'entity_$i';
+      if (!_selectedRequests.contains(endorsementKey)) continue;
+      final entityName =
+          (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+      if (!groups.containsKey(entityName)) groups[entityName] = [];
+      groups[entityName]!.add(endorsementKey);
+    }
+
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No selected items to approve')));
+      return;
+    }
+
+    final requestsPayload = groups.entries
+        .map((e) => {
+              'entity_name': e.key,
+              'action': 'approve_selected',
+              'selected_ids': e.value,
+            })
+        .toList();
+
+    final res = await PendingRequestsApi().performBatchPendingRequestAction(
+        creatorOwner: widget.empKey, requests: requestsPayload);
+
+    if (res['success'] == true) {
+      final List<String> processedIds = [];
+      try {
+        final data = res['data'];
+        if (data is Map && data['processed'] is List) {
+          for (final p in data['processed']) {
+            if (p is Map && p['id'] != null)
+              processedIds.add(p['id'].toString());
+          }
+        }
+      } catch (_) {}
+      if (processedIds.isEmpty) {
+        for (final v in groups.values) processedIds.addAll(v);
+      }
+
+      setState(() {
+        for (final id in processedIds) {
+          _requests.removeWhere((rr) =>
+              (rr['endorsement_flow_key'] ?? '').toString() == id ||
+              rr['endorsement_flow_key'] == id);
+        }
+        _selectedRequests.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Approved ${processedIds.length} request(s)')));
+    } else {
+      final msg = res['message'] ?? 'Failed to approve selected items';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Approve failed: $msg')));
+    }
+  }
+
+  Future<void> _rejectSelected() async {
+    final count = _selectedRequests.length;
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+      builder: (ctx) {
+        final controller = TextEditingController();
+        final mq = MediaQuery.of(ctx);
+        final maxH = mq.size.height * 0.6;
+        return Padding(
+          padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+          child: StatefulBuilder(builder: (ctx2, setStateSheet) {
+            return SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxH),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Reject $count selected request(s)',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        const Text('Please enter reason for rejection'),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: controller,
+                          autofocus: true,
+                          maxLines: 5,
+                          onChanged: (_) => setStateSheet(() {}),
+                          decoration: const InputDecoration(
+                              hintText: 'Rejection reason',
+                              border: OutlineInputBorder()),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(null),
+                                child: const Text('Cancel')),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: controller.text.trim().isEmpty
+                                  ? null
+                                  : () => Navigator.of(ctx)
+                                      .pop(controller.text.trim()),
+                              child: const Text('Reject'),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+
+    if (reason == null || reason.trim().isEmpty) return;
+
+    // Build requests payload grouped by entity
+    final Map<String, List<String>> groups = {};
+    for (int i = 0; i < _requests.length; i++) {
+      final r = _requests[i];
+      String endorsementKey = (r['endorsement_flow_key'] ?? '').toString();
+      if (endorsementKey.trim().isEmpty) endorsementKey = 'entity_$i';
+      if (!_selectedRequests.contains(endorsementKey)) continue;
+      final entityName =
+          (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+      if (!groups.containsKey(entityName)) groups[entityName] = [];
+      groups[entityName]!.add(endorsementKey);
+    }
+
+    if (groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No selected items to reject')));
+      return;
+    }
+
+    final requestsPayload = groups.entries
+        .map((e) => {
+              'entity_name': e.key,
+              'action': 'reject_selected',
+              'selected_ids': e.value,
+              'reason': reason.trim(),
+            })
+        .toList();
+
+    final res = await PendingRequestsApi().performBatchPendingRequestAction(
+        creatorOwner: widget.empKey, requests: requestsPayload);
+
+    if (res['success'] == true) {
+      final List<String> processedIds = [];
+      try {
+        final data = res['data'];
+        if (data is Map && data['processed'] is List) {
+          for (final p in data['processed']) {
+            if (p is Map && p['id'] != null)
+              processedIds.add(p['id'].toString());
+          }
+        }
+      } catch (_) {}
+      if (processedIds.isEmpty) {
+        for (final v in groups.values) processedIds.addAll(v);
+      }
+
+      setState(() {
+        for (final id in processedIds) {
+          _requests.removeWhere((rr) =>
+              (rr['endorsement_flow_key'] ?? '').toString() == id ||
+              rr['endorsement_flow_key'] == id);
+        }
+        _selectedRequests.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Rejected ${processedIds.length} request(s)')));
+    } else {
+      final msg = res['message'] ?? 'Failed to reject selected items';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Reject failed: $msg')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -185,8 +414,43 @@ class _ApproverScreenState extends State<ApproverScreen>
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: () => _fetchApprovals(forceRefresh: true),
           ),
+          if (_selectedRequests.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0),
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.white,
+                child: Text(
+                  _selectedRequests.length.toString(),
+                  style: const TextStyle(
+                      color: Color(0xFF1E3C72), fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
         ],
       ),
+      floatingActionButton: _selectedRequests.isNotEmpty
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton(
+                  heroTag: 'approve_fab',
+                  onPressed: _approveSelected,
+                  backgroundColor: Colors.green,
+                  tooltip: 'Approve selected',
+                  child: const Icon(Icons.check),
+                ),
+                const SizedBox(height: 10),
+                FloatingActionButton(
+                  heroTag: 'reject_fab',
+                  onPressed: _rejectSelected,
+                  backgroundColor: Colors.red,
+                  tooltip: 'Reject selected',
+                  child: const Icon(Icons.close),
+                ),
+              ],
+            )
+          : null,
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () {
@@ -336,8 +600,10 @@ class _ApproverScreenState extends State<ApproverScreen>
           delegate: SliverChildBuilderDelegate((context, index) {
             final entity = _requests[index];
             final entityName = entity['entity_name'] ?? 'Unknown';
-            final endorsementKey =
-                entity['endorsement_flow_key']?.toString() ?? '';
+            // Use server key when available, otherwise fall back to a unique local id
+            String endorsementKey =
+                (entity['endorsement_flow_key'] ?? '').toString();
+            if (endorsementKey.trim().isEmpty) endorsementKey = 'entity_$index';
             final approversRaw = entity['approvers'] as List<dynamic>? ?? [];
 
             // Apply search and filter
@@ -396,6 +662,12 @@ class _ApproverScreenState extends State<ApproverScreen>
                             ),
                           ),
                           const SizedBox(width: 8),
+                          // Selection checkbox for multi-select actions
+                          Checkbox(
+                            value: _selectedRequests.contains(endorsementKey),
+                            onChanged: (v) =>
+                                _toggleSelection(endorsementKey, v ?? false),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 6),

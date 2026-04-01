@@ -11,7 +11,6 @@ Future<void> main() async {
   final pngPath = 'assets/Images/IconAndLogo/logo-normal.png';
 
   if (!File(svgPath).existsSync()) {
-    print('SVG not found: $svgPath');
     exit(1);
   }
 
@@ -25,11 +24,9 @@ Future<void> main() async {
   final ByteData? byteData =
       await image.toByteData(format: ui.ImageByteFormat.png);
   if (byteData == null) {
-    print('Failed to encode image to PNG.');
     exit(1);
   }
   final Uint8List pngBytes = byteData.buffer.asUint8List();
   await File(pngPath).writeAsBytes(pngBytes);
-  print('Wrote $pngPath');
   exit(0);
 }
