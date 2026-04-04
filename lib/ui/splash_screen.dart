@@ -75,27 +75,56 @@ class _SplashScreenState extends State<SplashScreen>
                   opacity: _animation.value,
                   child: Transform.translate(
                     offset: Offset(0, 20 * (1 - _animation.value)),
-                    child: const Column(
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          "INDIAN INFOTECH",
+                        RichText(
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2.0,
-                            color: Colors.blueAccent,
+                          text: TextSpan(
+                            style: const TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                              letterSpacing: 2.0,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: "Indian ",
+                                style: TextStyle(
+                                  color: Colors.blue[700],
+                                ),
+                              ),
+                              TextSpan(
+                                text: "Infotech",
+                                style: TextStyle(
+                                  color: Colors.green[700],
+                                ),
+                              ),
+                              WidgetSpan(
+                                alignment: PlaceholderAlignment.top,
+                                child: Transform.translate(
+                                  offset: const Offset(0, -4),
+                                  child: const Text(
+                                    "®",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          "The Solution People",
+                        const Text(
+                          "the solution people...",
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
                             letterSpacing: 2.0,
-                            color: Colors.blueAccent,
+                            color: Color.fromARGB(255, 0, 0, 0),
                           ),
                         ),
                       ],

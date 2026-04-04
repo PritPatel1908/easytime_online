@@ -56,10 +56,10 @@ dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/Images/IconAndLogo/easytime-online-logo.png"
+  image_path: "assets/Images/IconAndLogo/logo-normal.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#1E3C72"
-  adaptive_icon_foreground: "assets/Images/IconAndLogo/easytime-online-logo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/Images/IconAndLogo/logo-normal.png"
 
 dev_dependencies:
   flutter_test:

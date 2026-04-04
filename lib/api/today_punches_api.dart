@@ -35,6 +35,17 @@ class TodayPunchesApi {
     _updateTimer = null;
   }
 
+  // Method to manually emit punch updates (useful after submitting a punch)
+  void emitPunchUpdate(Map<String, dynamic> punchData) {
+    _punchController.add(punchData);
+  }
+
+  // Refetch and emit latest punch data
+  Future<void> refreshPunches(String empKey) async {
+    final res = await fetchTodayPunches(empKey);
+    _punchController.add(res);
+  }
+
   void dispose() {
     stopPeriodicUpdates();
     _punchController.close();

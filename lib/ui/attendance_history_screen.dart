@@ -668,10 +668,19 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                   mainAxisSpacing: spacing,
                   crossAxisSpacing: spacing,
                 ),
-                itemCount:
+                itemCount: _getFirstDayOffset(
+                      _selectedDate.year,
+                      _selectedDate.month,
+                    ) +
                     _getDaysInMonth(_selectedDate.year, _selectedDate.month),
                 itemBuilder: (context, index) {
-                  final day = index + 1;
+                  final firstDayOffset = _getFirstDayOffset(
+                      _selectedDate.year, _selectedDate.month);
+                  if (index < firstDayOffset) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final day = index - firstDayOffset + 1;
                   // Find the day data safely without using firstWhere
                   Map<String, dynamic>? dayData;
                   for (var d in days) {
@@ -1097,6 +1106,11 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   // Helper method to get days in month
   int _getDaysInMonth(int year, int month) {
     return DateTime(year, month + 1, 0).day;
+  }
+
+  // Returns the number of leading empty cells for Sunday-first calendar.
+  int _getFirstDayOffset(int year, int month) {
+    return DateTime(year, month, 1).weekday % 7;
   }
 
   // Helper method to check if a day is today

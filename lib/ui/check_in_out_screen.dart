@@ -330,6 +330,8 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
               _inPunch = _formatToHHMM(extracted['in']);
               _outPunch = _formatToHHMM(extracted['out']);
             });
+            // Refresh punch stream to notify all listeners
+            _todayPunchesApi.refreshPunches(widget.empKey);
             if (!mounted) return;
             Navigator.pop(context, {'emp_key': widget.empKey});
             return;
@@ -360,6 +362,8 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
               _inPunch = _formatToHHMM(extracted['in']);
               _outPunch = _formatToHHMM(extracted['out']);
             });
+            // Refresh punch stream to notify all listeners
+            _todayPunchesApi.refreshPunches(widget.empKey);
             if (!mounted) return;
             Navigator.pop(context, {'emp_key': widget.empKey});
             return;
@@ -401,6 +405,8 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
               _inPunch = _formatToHHMM(extracted['in']);
               _outPunch = _formatToHHMM(extracted['out']);
             });
+            // Refresh punch stream to notify all listeners
+            _todayPunchesApi.refreshPunches(widget.empKey);
             if (!mounted) return;
             Navigator.pop(context, {'emp_key': widget.empKey});
             return;
