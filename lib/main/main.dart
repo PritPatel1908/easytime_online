@@ -576,21 +576,26 @@ class _HomeScreenState extends State<HomeScreen> {
         // Ensure userData has emp_key explicitly set
         userData['emp_key'] = empKey;
 
-        // Extract announcements from response_data and add to userData
+        // Keep announcement cache in sync with latest login response.
         try {
+          final prefs = await SharedPreferences.getInstance();
           final respData = result['response_data'];
+
+          List<dynamic>? announcements;
           if (respData is Map && respData.containsKey('announcements')) {
             final ann = respData['announcements'];
-            if (ann is List && ann.isNotEmpty) {
-              userData['announcements'] = ann;
-
-              // Persist announcements as fallback for dashboard
-              try {
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setString(
-                    'latest_announcements_json', jsonEncode(ann));
-              } catch (_) {}
+            if (ann is List) {
+              announcements = ann;
             }
+          }
+
+          if (announcements != null && announcements.isNotEmpty) {
+            userData['announcements'] = announcements;
+            await prefs.setString(
+                'latest_announcements_json', jsonEncode(announcements));
+          } else {
+            userData.remove('announcements');
+            await prefs.remove('latest_announcements_json');
           }
         } catch (_) {}
 

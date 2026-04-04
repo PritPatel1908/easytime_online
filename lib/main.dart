@@ -578,20 +578,21 @@ class _HomeScreenState extends State<HomeScreen> {
         // Ensure userData has emp_key explicitly set
         userData['emp_key'] = empKey;
 
-        // Include announcements from response_data if available
+        // Keep announcement cache in sync with latest login response.
         try {
+          final prefs = await SharedPreferences.getInstance();
+
           // Robustly find announcements anywhere inside response_data
-          List<dynamic>? found =
+          final List<dynamic>? found =
               _findAnnouncementsRecursively(result['response_data']);
+
           if (found != null && found.isNotEmpty) {
             userData['announcements'] = found;
-
-            // Persist announcements for dashboard fallback
-            try {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setString(
-                  'latest_announcements_json', jsonEncode(found));
-            } catch (_) {}
+            await prefs.setString(
+                'latest_announcements_json', jsonEncode(found));
+          } else {
+            userData.remove('announcements');
+            await prefs.remove('latest_announcements_json');
           }
         } catch (_) {}
 
