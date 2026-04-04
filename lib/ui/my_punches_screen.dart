@@ -25,7 +25,7 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
   String _error = '';
-    String _apiWarning = '';
+  String _apiWarning = '';
   String _baseUrl = '';
   List<Map<String, dynamic>> _punches = <Map<String, dynamic>>[];
   final Map<String, Future<Uint8List?>> _photoBytesCache = {};
@@ -40,15 +40,14 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
     setState(() {
       _isLoading = true;
       _error = '';
-        _apiWarning = '';
+      _apiWarning = '';
     });
 
-      final sentDate = _dateApiFormat.format(_selectedDate);
-      debugPrint('[MyPunches] Fetching for empKey=${widget.empKey}, date=$sentDate');
+    final sentDate = _dateApiFormat.format(_selectedDate);
 
     final response = await _api.fetchTodayAllPunches(
       empKey: widget.empKey,
-        date: sentDate,
+      date: sentDate,
     );
 
     if (!mounted) return;
@@ -57,7 +56,7 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
       _isLoading = false;
       if (response['success'] == true) {
         final list = response['punch_list'] as List<dynamic>? ?? [];
-          final allPunches = list
+        _punches = list
             .map(
               (e) => e is Map<String, dynamic>
                   ? e
@@ -65,31 +64,8 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
             )
             .toList();
 
-          // Log what dates came back from the API
-          debugPrint('[MyPunches] API returned ${allPunches.length} records for requested date=$sentDate');
-          for (final p in allPunches.take(3)) {
-            debugPrint('[MyPunches]   att_log_key=${p['att_log_key']}, datetime=${p['datetime']}');
-          }
-
-          // Client-side filter: keep only records that match the requested date.
-          final filtered = allPunches.where((item) {
-            final ymd = _extractYmd((item['datetime'] ?? '').toString());
-            return ymd == null || ymd == sentDate;
-          }).toList();
-
-          if (filtered.isEmpty && allPunches.isNotEmpty) {
-            // API is not filtering by date — show all records with a warning
-            _punches = allPunches;
-            final firstDate = _extractYmd((allPunches.first['datetime'] ?? '').toString()) ?? '';
-            _apiWarning =
-                'Server returned data for $firstDate instead of $sentDate';
-            debugPrint('[MyPunches] WARNING: API ignored date filter. Showing all ${allPunches.length} records.');
-          } else {
-            _punches = filtered;
-            _apiWarning = '';
-          }
-
         _baseUrl = (response['base_url'] ?? '').toString();
+        _apiWarning = '';
         _error = '';
       } else {
         _punches = <Map<String, dynamic>>[];
@@ -110,6 +86,7 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
 
     setState(() {
       _selectedDate = picked;
+      _photoBytesCache.clear();
     });
 
     await _loadPunches();
@@ -153,14 +130,6 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
     } catch (_) {
       return null;
     }
-  }
-
-  String? _extractYmd(String raw) {
-    final input = raw.trim();
-    if (input.length < 10) return null;
-    final candidate = input.substring(0, 10);
-    final ymd = RegExp(r'^\d{4}-\d{2}-\d{2}$');
-    return ymd.hasMatch(candidate) ? candidate : null;
   }
 
   String _getPhotoUrl(String path) {
@@ -546,30 +515,30 @@ class _MyPunchesScreenState extends State<MyPunchesScreen> {
               ],
             ),
           ),
-            if (_apiWarning.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF8E1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFFCC02), width: 1),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded,
-                        size: 16, color: Color(0xFFF59E0B)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _apiWarning,
-                        style: const TextStyle(
-                            fontSize: 12, color: Color(0xFF92400E)),
-                      ),
-                    ),
-                  ],
-                ),
+          if (_apiWarning.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFFCC02), width: 1),
               ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 16, color: Color(0xFFF59E0B)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _apiWarning,
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF92400E)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: _loadPunches,
