@@ -715,6 +715,10 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             ),
           ),
 
+        // Summary (dynamic counts per status)
+        const SizedBox(height: 16),
+        _buildStatusSummary(),
+
         // Legend
         const SizedBox(height: 24),
         _buildLegend(),
@@ -908,6 +912,66 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 ],
               );
             }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Build dynamic status summary (counts per status) shown below calendar
+  Widget _buildStatusSummary() {
+    final List<dynamic> days = _attendanceData ?? [];
+    if (days.isEmpty) return const SizedBox.shrink();
+
+    final Map<String, int> counts = {};
+    for (var d in days) {
+      try {
+        if (d is Map && d['status'] != null) {
+          final String s = d['status'].toString();
+          if (s.isNotEmpty) counts[s] = (counts[s] ?? 0) + 1;
+        }
+      } catch (_) {}
+    }
+
+    if (counts.isEmpty) return const SizedBox.shrink();
+
+    final chips = counts.entries.map<Widget>((entry) {
+      final code = entry.key;
+      final cnt = entry.value;
+      final color = _getStatusColor(code);
+      final icon = _getStatusIcon(code);
+
+      return Chip(
+        backgroundColor: color.withAlpha(26),
+        avatar: CircleAvatar(
+          backgroundColor: color,
+          child: Icon(icon, size: 16, color: Colors.white),
+        ),
+        label: Text(
+          '$code • $cnt',
+          style: TextStyle(
+              color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 12),
+        ),
+      );
+    }).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withAlpha(51)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Summary',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: chips,
           ),
         ],
       ),

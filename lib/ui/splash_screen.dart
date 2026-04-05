@@ -33,16 +33,22 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeInOutCubic,
     );
 
-    _controller.forward();
+    // Start animation and navigation after first frame so the
+    // native/app splash is visible before animations play.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.forward();
 
-    // Navigate to home after splash
-    Timer(const Duration(seconds: 4), () {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(title: 'EasyTime Online'),
-        ),
-      );
+      // Navigate to home after splash
+      Timer(const Duration(seconds: 4), () {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const HomeScreen(title: 'EasyTime Online'),
+          ),
+        );
+      });
     });
   }
 
@@ -222,7 +228,11 @@ class _AnimatedIndianInfotechLogoState extends State<AnimatedIndianInfotechLogo>
       ));
     }
 
-    _controller.forward();
+    // Ensure the logo animation starts after the first frame is rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.forward();
+    });
   }
 
   @override

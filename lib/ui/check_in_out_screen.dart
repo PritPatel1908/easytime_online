@@ -494,8 +494,6 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
   Widget build(BuildContext context) {
     final bool isCheckIn =
         widget.headerTitle.toLowerCase().contains('check in');
-    final bool isAlreadyIn =
-        _inPunch.trim().isNotEmpty && _inPunch.trim() != '-';
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
@@ -680,8 +678,17 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),
+                onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              if (_remarkController.text.trim().isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4.0, bottom: 8.0),
+                  child: Text('Remark is required',
+                      style: TextStyle(color: Colors.red)),
+                )
+              else
+                const SizedBox(height: 8),
 
               isCheckIn
                   ? ElevatedButton.icon(
@@ -698,20 +705,16 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
                       label: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 14.0),
                         child: Text(
-                          _isSubmitting
-                              ? 'Submitting...'
-                              : (isAlreadyIn
-                                  ? 'Checked in ($_inPunch)'
-                                  : 'Check In'),
+                          _isSubmitting ? 'Submitting...' : 'Check In',
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),
-                      onPressed: (isAlreadyIn || _isSubmitting)
+                      onPressed: (_isSubmitting ||
+                              _remarkController.text.trim().isEmpty)
                           ? null
                           : _performCheckIn,
                       style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              isAlreadyIn ? Colors.grey : Colors.green),
+                          backgroundColor: Colors.green),
                     )
                   : ElevatedButton.icon(
                       icon: _isSubmitting
@@ -731,7 +734,10 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
                           style: const TextStyle(fontSize: 16),
                         ),
                       ),
-                      onPressed: _isSubmitting ? null : _performCheckOut,
+                      onPressed: (_isSubmitting ||
+                              _remarkController.text.trim().isEmpty)
+                          ? null
+                          : _performCheckOut,
                       style:
                           ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     ),
