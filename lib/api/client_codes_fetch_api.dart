@@ -46,7 +46,27 @@ Future<List<ClientData>> fetchClientCodes() async {
 }
 
 class ApiService {
-  static const String defaultBaseUrl = 'http://att.easytimeonline.in:9095';
+  static const String defaultBaseUrl = 'https://att.easytimeonline.in:9095';
+
+  // Normalize base URL: remove trailing slash and ensure scheme
+  static String _normalizeBaseUrl(String url) {
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+    return url;
+  }
+
+  // Return list of scheme candidates: prefer https then http
+  static List<String> _schemeCandidates(String url) {
+    final normalized = _normalizeBaseUrl(url);
+    final uri = Uri.parse(normalized);
+    final https = uri.replace(scheme: 'https').toString();
+    final http = uri.replace(scheme: 'http').toString();
+    return [https, http];
+  }
 
   // Get the stored base API URL
   static Future<String> getClientApiUrl() async {
@@ -59,69 +79,91 @@ class ApiService {
   static Future<Map<String, dynamic>> verifyClientCode(
       String clientCode) async {
     try {
-      const verifyUrl = '$defaultBaseUrl/api/verify-client-code';
+      final candidates = _schemeCandidates(defaultBaseUrl);
 
-      final response = await http.post(
-        Uri.parse(verifyUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'client_code': clientCode}),
-      );
+      for (final base in candidates) {
+        final verifyUrl = '$base/api/verify-client-code';
 
-      if (response.statusCode == 200) {
-        // Try to parse response body
-        Map<String, dynamic> data;
         try {
-          data = json.decode(response.body);
-        } catch (e) {
-          return {'success': false, 'message': 'Error parsing server response'};
-        }
+          final response = await http
+              .post(
+                Uri.parse(verifyUrl),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode({'client_code': clientCode}),
+              )
+              .timeout(const Duration(seconds: 10));
 
-        // Extract the API URL from the response
-        String baseApiUrl;
-        if (data.containsKey('api_url')) {
-          baseApiUrl = data['api_url'];
-        } else if (data.containsKey('url')) {
-          baseApiUrl = data['url'];
-        } else {
-          // If neither field exists, use default
-          baseApiUrl = defaultBaseUrl;
-        }
+          if (response.statusCode == 200) {
+            Map<String, dynamic> data;
+            try {
+              data = json.decode(response.body);
+            } catch (e) {
+              return {
+                'success': false,
+                'message': 'Error parsing server response'
+              };
+            }
 
-        // Remove trailing slash if present
-        if (baseApiUrl.endsWith('/')) {
-          baseApiUrl = baseApiUrl.substring(0, baseApiUrl.length - 1);
-        }
+            String baseApiUrl;
+            if (data.containsKey('api_url')) {
+              baseApiUrl = data['api_url'];
+            } else if (data.containsKey('url')) {
+              baseApiUrl = data['url'];
+            } else {
+              baseApiUrl = base;
+            }
 
-        // Save to shared preferences
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('base_api_url', baseApiUrl);
+            // If returned URL lacks scheme, use scheme from the base we used
+            if (!baseApiUrl.startsWith('http://') &&
+                !baseApiUrl.startsWith('https://')) {
+              final scheme = Uri.parse(base).scheme;
+              baseApiUrl = '$scheme://$baseApiUrl';
+            }
 
-        return {
-          'success': true,
-          'api_url': baseApiUrl,
-          'message': 'Client code verified successfully',
-          'response_data': data
-        };
-      } else {
-        // Try to parse error message from response if available
-        String errorMessage = 'Invalid client code';
-        try {
-          Map<String, dynamic> errorData = json.decode(response.body);
-          if (errorData.containsKey('message')) {
-            errorMessage = errorData['message'];
-          } else if (errorData.containsKey('error')) {
-            errorMessage = errorData['error'];
+            if (baseApiUrl.endsWith('/')) {
+              baseApiUrl = baseApiUrl.substring(0, baseApiUrl.length - 1);
+            }
+
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('base_api_url', baseApiUrl);
+
+            return {
+              'success': true,
+              'api_url': baseApiUrl,
+              'message': 'Client code verified successfully',
+              'response_data': data,
+              'url_used': verifyUrl
+            };
+          } else {
+            String errorMessage = 'Invalid client code';
+            try {
+              Map<String, dynamic> errorData = json.decode(response.body);
+              if (errorData.containsKey('message')) {
+                errorMessage = errorData['message'];
+              } else if (errorData.containsKey('error')) {
+                errorMessage = errorData['error'];
+              }
+            } catch (e) {
+              // ignore parse errors
+            }
+
+            return {
+              'success': false,
+              'message': errorMessage,
+              'status_code': response.statusCode,
+              'url_used': verifyUrl
+            };
           }
         } catch (e) {
-          // If we can't parse the response, use default message
+          // network error for this candidate -> try next scheme
+          continue;
         }
-
-        return {
-          'success': false,
-          'message': errorMessage,
-          'status_code': response.statusCode
-        };
       }
+
+      return {
+        'success': false,
+        'message': 'Connection error: Could not reach API via HTTPS or HTTP'
+      };
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -146,151 +188,171 @@ class ApiService {
   // Test direct login with explicit URL
   static Future<Map<String, dynamic>> directLogin(
       String apiUrl, String username, String password) async {
+    // Try the full login sequence against HTTPS first, then fallback to HTTP on network errors
     try {
-      // Clean URL by removing trailing slash if present
       String cleanUrl = apiUrl;
       if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
       }
 
-      // Always use /api/login endpoint for authentication
-      final loginUrl = '$cleanUrl/api/login';
+      final candidates = _schemeCandidates(cleanUrl);
 
-      // Create different request body formats to try
-      final Map<String, dynamic> credentials = {
-        'username': username,
-        'password': password,
-      };
+      for (final base in candidates) {
+        final loginUrl = '$base/api/login';
 
-      // 1. Standard JSON body
-      final String jsonBody = jsonEncode(credentials);
+        try {
+          final Map<String, dynamic> credentials = {
+            'username': username,
+            'password': password,
+          };
 
-      // Try with JSON content type first (most common)
-      var response = await http
-          .post(
-            Uri.parse(loginUrl),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonBody,
-          )
-          .timeout(const Duration(seconds: 10));
+          final String jsonBody = jsonEncode(credentials);
 
-      // If first attempt fails, try with form data
-      if (response.statusCode >= 400) {
-        // Create form data body
-        String formBody =
-            'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+          http.Response response;
 
-        response = await http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-              },
-              body: formBody,
-            )
-            .timeout(const Duration(seconds: 10));
-      }
-
-      // If still failing, try with multipart form
-      if (response.statusCode >= 400) {
-        var request = http.MultipartRequest('POST', Uri.parse(loginUrl));
-        request.fields['username'] = username;
-        request.fields['password'] = password;
-
-        var streamedResponse =
-            await request.send().timeout(const Duration(seconds: 10));
-        response = await http.Response.fromStream(streamedResponse);
-      }
-
-      // If all above attempts fail, try one last approach with direct query parameters
-      if (response.statusCode >= 400) {
-        final queryUrl =
-            '$loginUrl?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
-
-        response = await http.post(
-          Uri.parse(queryUrl),
-          headers: {
-            'Accept': 'application/json',
-          },
-        ).timeout(const Duration(seconds: 10));
-      }
-
-      // Default to authentication failure
-      bool isSuccess = false;
-      String message = 'Login failed: Invalid credentials';
-      Map<String, dynamic> responseData = {};
-      bool isJsonResponse = true;
-
-      // Try to parse response as JSON
-      try {
-        responseData = json.decode(response.body);
-      } catch (e) {
-        isJsonResponse = false;
-        responseData = {'raw_text': response.body};
-      }
-
-      // Determine login success based on response
-      if (response.statusCode == 200) {
-        if (isJsonResponse) {
-          // Check for explicit success indicators in JSON response
-          if (responseData.containsKey('success') &&
-              responseData['success'] == true) {
-            isSuccess = true;
-            message = responseData['message'] ?? 'Login successful';
+          // 1) JSON
+          try {
+            response = await http
+                .post(
+                  Uri.parse(loginUrl),
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                  },
+                  body: jsonBody,
+                )
+                .timeout(const Duration(seconds: 10));
+          } catch (e) {
+            // network error for this candidate -> try next scheme
+            continue;
           }
-          // Check for common auth data patterns
-          else if (responseData.containsKey('user') ||
-              responseData.containsKey('token') ||
-              responseData.containsKey('userData') ||
-              responseData.containsKey('auth_token')) {
-            isSuccess = true;
-            message = 'Login successful';
+
+          // 2) form data
+          if (response.statusCode >= 400) {
+            try {
+              String formBody =
+                  'username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+
+              response = await http
+                  .post(
+                    Uri.parse(loginUrl),
+                    headers: {
+                      'Content-Type': 'application/x-www-form-urlencoded',
+                      'Accept': 'application/json',
+                    },
+                    body: formBody,
+                  )
+                  .timeout(const Duration(seconds: 10));
+            } catch (e) {
+              continue;
+            }
           }
-          // Check for status field
-          else if (responseData.containsKey('status') &&
-              responseData['status'].toString().toLowerCase() == 'success') {
-            isSuccess = true;
-            message = 'Login successful';
+
+          // 3) multipart
+          if (response.statusCode >= 400) {
+            try {
+              var request = http.MultipartRequest('POST', Uri.parse(loginUrl));
+              request.fields['username'] = username;
+              request.fields['password'] = password;
+
+              var streamedResponse =
+                  await request.send().timeout(const Duration(seconds: 10));
+              response = await http.Response.fromStream(streamedResponse);
+            } catch (e) {
+              continue;
+            }
           }
-          // Check for error indicators
-          else if (responseData.containsKey('error') ||
-              (responseData.containsKey('success') &&
-                  responseData['success'] == false)) {
-            isSuccess = false;
-            message = responseData['message'] ??
-                responseData['error'] ??
-                'Login failed: Invalid credentials';
+
+          // 4) query params
+          if (response.statusCode >= 400) {
+            try {
+              final queryUrl =
+                  '$loginUrl?username=${Uri.encodeComponent(username)}&password=${Uri.encodeComponent(password)}';
+
+              response = await http.post(
+                Uri.parse(queryUrl),
+                headers: {
+                  'Accept': 'application/json',
+                },
+              ).timeout(const Duration(seconds: 10));
+            } catch (e) {
+              continue;
+            }
           }
-          // No clear indicators in response
-          else {
+
+          // Parse response
+          bool isSuccess = false;
+          String message = 'Login failed: Invalid credentials';
+          Map<String, dynamic> responseData = {};
+          bool isJsonResponse = true;
+
+          try {
+            responseData = json.decode(response.body);
+          } catch (e) {
+            isJsonResponse = false;
+            responseData = {'raw_text': response.body};
+          }
+
+          if (response.statusCode == 200) {
+            if (isJsonResponse) {
+              if (responseData.containsKey('success') &&
+                  responseData['success'] == true) {
+                isSuccess = true;
+                message = responseData['message'] ?? 'Login successful';
+              } else if (responseData.containsKey('user') ||
+                  responseData.containsKey('token') ||
+                  responseData.containsKey('userData') ||
+                  responseData.containsKey('auth_token')) {
+                isSuccess = true;
+                message = 'Login successful';
+              } else if (responseData.containsKey('status') &&
+                  responseData['status'].toString().toLowerCase() ==
+                      'success') {
+                isSuccess = true;
+                message = 'Login successful';
+              } else if (responseData.containsKey('error') ||
+                  (responseData.containsKey('success') &&
+                      responseData['success'] == false)) {
+                isSuccess = false;
+                message = responseData['message'] ??
+                    responseData['error'] ??
+                    'Login failed: Invalid credentials';
+              } else {
+                isSuccess = false;
+                message =
+                    'Login failed: No authentication confirmation from server';
+              }
+            } else {
+              isSuccess = false;
+              message = 'Login failed: Invalid response format from server';
+            }
+          } else {
             isSuccess = false;
             message =
-                'Login failed: No authentication confirmation from server';
+                'Login failed: Server returned error code ${response.statusCode}';
           }
-        } else {
-          // For non-JSON responses, consider login failed
-          isSuccess = false;
-          message = 'Login failed: Invalid response format from server';
+
+          return {
+            'success': isSuccess,
+            'message': message,
+            'response_code': response.statusCode,
+            'response_body': response.body,
+            'response_data': responseData,
+            'url_used': loginUrl,
+            'request_sent': credentials,
+            'scheme_used': base,
+          };
+        } catch (e) {
+          // If anything unexpected happened for this base, try next scheme
+          continue;
         }
-      } else {
-        // Non-200 responses always indicate failure
-        isSuccess = false;
-        message =
-            'Login failed: Server returned error code ${response.statusCode}';
       }
 
       return {
-        'success': isSuccess,
-        'message': message,
-        'response_code': response.statusCode,
-        'response_body': response.body,
-        'response_data': responseData,
-        'url_used': loginUrl,
-        'request_sent': credentials,
+        'success': false,
+        'message':
+            'Error connecting to server: Could not reach server via HTTPS or HTTP',
+        'url_used': '$apiUrl/api/login'
       };
     } catch (e) {
       return {
@@ -305,101 +367,97 @@ class ApiService {
   static Future<Map<String, dynamic>> loginWithPhpApi(
       String apiUrl, String username, String password) async {
     try {
-      // Clean URL by removing trailing slash if present
       String cleanUrl = apiUrl;
       if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
       }
 
-      // Define the login URL - adjust this to match your PHP API endpoint
-      final loginUrl = '$cleanUrl/api/login';
+      final candidates = _schemeCandidates(cleanUrl);
 
-      // Try multiple approaches to handle the PHP parameter issue
-      List<Future<http.Response>> loginAttempts = [];
-
-      // 1. Standard form data approach
-      loginAttempts.add(
-        http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-              body: 'username=$username&password=$password',
-            )
-            .timeout(const Duration(seconds: 10)),
-      );
-
-      // 2. URL query parameters approach
-      loginAttempts.add(
-        http.post(
-          Uri.parse('$loginUrl?username=$username&password=$password'),
-          headers: {'Accept': 'application/json'},
-        ).timeout(const Duration(seconds: 10)),
-      );
-
-      // 3. Malformed parameter name approach (handling &amp;password issue)
-      loginAttempts.add(
-        http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-              body: 'username=$username&amp;password=$password',
-            )
-            .timeout(const Duration(seconds: 10)),
-      );
-
-      // 4. Direct GET request with parameters
-      loginAttempts.add(
-        http.get(
-          Uri.parse('$loginUrl?username=$username&password=$password'),
-          headers: {'Accept': 'application/json'},
-        ).timeout(const Duration(seconds: 10)),
-      );
-
-      // Try each approach until one succeeds
       http.Response? successfulResponse;
       String attemptDescription = '';
+      String usedLoginUrl = '';
 
-      for (int i = 0; i < loginAttempts.length; i++) {
-        try {
-          final response = await loginAttempts[i];
+      for (final base in candidates) {
+        final loginUrl = '$base/api/login';
+        usedLoginUrl = loginUrl;
 
-          // If we got a 200 response, consider it successful
-          if (response.statusCode == 200) {
-            successfulResponse = response;
-            switch (i) {
-              case 0:
-                attemptDescription = 'Standard form data';
-                break;
-              case 1:
-                attemptDescription = 'URL query parameters';
-                break;
-              case 2:
-                attemptDescription = 'Malformed parameter name';
-                break;
-              case 3:
-                attemptDescription = 'Direct GET request';
-                break;
+        List<Future<http.Response>> loginAttempts = [];
+
+        loginAttempts.add(
+          http
+              .post(
+                Uri.parse(loginUrl),
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'username=$username&password=$password',
+              )
+              .timeout(const Duration(seconds: 10)),
+        );
+
+        loginAttempts.add(
+          http.post(
+            Uri.parse('$loginUrl?username=$username&password=$password'),
+            headers: {'Accept': 'application/json'},
+          ).timeout(const Duration(seconds: 10)),
+        );
+
+        loginAttempts.add(
+          http
+              .post(
+                Uri.parse(loginUrl),
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'username=$username&amp;password=$password',
+              )
+              .timeout(const Duration(seconds: 10)),
+        );
+
+        loginAttempts.add(
+          http.get(
+            Uri.parse('$loginUrl?username=$username&password=$password'),
+            headers: {'Accept': 'application/json'},
+          ).timeout(const Duration(seconds: 10)),
+        );
+
+        for (int i = 0; i < loginAttempts.length; i++) {
+          try {
+            final response = await loginAttempts[i];
+            if (response.statusCode == 200) {
+              successfulResponse = response;
+              switch (i) {
+                case 0:
+                  attemptDescription = 'Standard form data';
+                  break;
+                case 1:
+                  attemptDescription = 'URL query parameters';
+                  break;
+                case 2:
+                  attemptDescription = 'Malformed parameter name';
+                  break;
+                case 3:
+                  attemptDescription = 'Direct GET request';
+                  break;
+              }
+              break;
             }
-            break;
+          } catch (e) {
+            // this attempt failed for the current scheme; continue trying other attempts
+            // if all attempts fail for this scheme, next scheme will be tried by outer loop
           }
-        } catch (e) {
-          // Silently continue to next attempt if this one fails
-          // We're trying multiple login approaches, so individual failures are expected
+        }
+
+        if (successfulResponse != null) {
+          break;
         }
       }
 
-      // If no attempt was successful, return error
       if (successfulResponse == null) {
         return {
           'success': false,
           'message': 'All login attempts failed',
-          'url_used': loginUrl,
+          'url_used': usedLoginUrl,
         };
       }
 
-      // Process the successful response
-
-      // Try to parse response as JSON
       Map<String, dynamic> responseData = {};
       bool isJsonResponse = true;
       try {
@@ -409,12 +467,10 @@ class ApiService {
         responseData = {'raw_text': successfulResponse.body};
       }
 
-      // Check for success indicators in the response
       bool isSuccess = false;
       String message = 'Login failed: Invalid credentials';
 
       if (isJsonResponse) {
-        // Check for status field (common in PHP APIs)
         if (responseData.containsKey('status')) {
           if (responseData['status'] == true ||
               responseData['status'].toString().toLowerCase() == 'true' ||
@@ -424,7 +480,6 @@ class ApiService {
           }
         }
 
-        // Check for user_data field (based on your PHP API)
         if (responseData.containsKey('user_data')) {
           isSuccess = true;
           message = 'Login successful';
@@ -437,7 +492,7 @@ class ApiService {
         'response_code': successfulResponse.statusCode,
         'response_body': successfulResponse.body,
         'response_data': responseData,
-        'url_used': loginUrl,
+        'url_used': usedLoginUrl,
         'method_used': attemptDescription,
       };
     } catch (e) {
@@ -484,7 +539,7 @@ class ApiService {
 
   // Test API connection
   static Future<Map<String, dynamic>> testApiConnection(String apiUrl) async {
-    Map<String, dynamic> results = {};
+    // results will be built per-scheme below
 
     try {
       // Clean URL by removing trailing slash if present
@@ -493,124 +548,148 @@ class ApiService {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
       }
 
-      // Test base URL connection
-      try {
-        final baseResponse = await http
-            .get(Uri.parse(cleanUrl))
-            .timeout(const Duration(seconds: 5));
-        results['base_url'] = {
-          'status': baseResponse.statusCode,
-          'success': baseResponse.statusCode < 400,
-          'body': baseResponse.body.length > 1000
-              ? '${baseResponse.body.substring(0, 1000)}...'
-              : baseResponse.body,
-        };
-      } catch (e) {
-        results['base_url'] = {
-          'status': 'error',
-          'message': e.toString(),
-          'success': false,
-        };
+      final candidates = _schemeCandidates(cleanUrl);
+      Map<String, dynamic>? lastResults;
+
+      for (final base in candidates) {
+        Map<String, dynamic> candidate = {};
+
+        // Test base URL connection
+        try {
+          final baseResponse = await http
+              .get(Uri.parse(base))
+              .timeout(const Duration(seconds: 5));
+          candidate['base_url'] = {
+            'status': baseResponse.statusCode,
+            'success': baseResponse.statusCode < 400,
+            'body': baseResponse.body.length > 1000
+                ? '${baseResponse.body.substring(0, 1000)}...'
+                : baseResponse.body,
+          };
+        } catch (e) {
+          candidate['base_url'] = {
+            'status': 'error',
+            'message': e.toString(),
+            'success': false,
+          };
+        }
+
+        // Test login endpoint with HEAD request
+        try {
+          final loginUrl = '$base/api/login';
+          final loginHeadResponse = await http
+              .head(Uri.parse(loginUrl))
+              .timeout(const Duration(seconds: 5));
+          candidate['login_head'] = {
+            'status': loginHeadResponse.statusCode,
+            'success': loginHeadResponse.statusCode < 400,
+          };
+        } catch (e) {
+          candidate['login_head'] = {
+            'status': 'error',
+            'message': e.toString(),
+            'success': false,
+          };
+        }
+
+        // Test login endpoint with empty body
+        try {
+          final loginUrl = '$base/api/login';
+          final loginEmptyResponse = await http
+              .post(
+                Uri.parse(loginUrl),
+                headers: {'Content-Type': 'application/json'},
+                body: '{}',
+              )
+              .timeout(const Duration(seconds: 5));
+          candidate['login_empty'] = {
+            'status': loginEmptyResponse.statusCode,
+            'body': loginEmptyResponse.body.length > 1000
+                ? '${loginEmptyResponse.body.substring(0, 1000)}...'
+                : loginEmptyResponse.body,
+            'success': true,
+          };
+        } catch (e) {
+          candidate['login_empty'] = {
+            'status': 'error',
+            'message': e.toString(),
+            'success': false,
+          };
+        }
+
+        // Test login endpoint with sample credentials
+        try {
+          final loginUrl = '$base/api/login';
+          final loginSampleResponse = await http
+              .post(
+                Uri.parse(loginUrl),
+                headers: {'Content-Type': 'application/json'},
+                body: jsonEncode(
+                    {'username': 'test_user', 'password': 'test_password'}),
+              )
+              .timeout(const Duration(seconds: 5));
+          candidate['login_sample'] = {
+            'status': loginSampleResponse.statusCode,
+            'body': loginSampleResponse.body.length > 1000
+                ? '${loginSampleResponse.body.substring(0, 1000)}...'
+                : loginSampleResponse.body,
+            'success': true,
+          };
+        } catch (e) {
+          candidate['login_sample'] = {
+            'status': 'error',
+            'message': e.toString(),
+            'success': false,
+          };
+        }
+
+        // If both base and login_head are successful, return this candidate's results
+        if (candidate['base_url']['success'] == true &&
+            candidate['login_head']['success'] == true) {
+          candidate['diagnosis'] = {
+            'success': true,
+            'message':
+                'API connection looks good. The login endpoint is accessible.',
+          };
+          return candidate;
+        }
+
+        lastResults = candidate;
       }
 
-      // Test login endpoint with HEAD request
-      try {
-        final loginUrl = '$cleanUrl/api/login';
-        final loginHeadResponse = await http
-            .head(Uri.parse(loginUrl))
-            .timeout(const Duration(seconds: 5));
-        results['login_head'] = {
-          'status': loginHeadResponse.statusCode,
-          'success': loginHeadResponse.statusCode < 400,
-        };
-      } catch (e) {
-        results['login_head'] = {
-          'status': 'error',
-          'message': e.toString(),
-          'success': false,
-        };
+      // No candidate was fully successful; derive diagnosis from last attempt
+      if (lastResults != null) {
+        if (lastResults['base_url'] != null &&
+            lastResults['base_url']['success'] == false) {
+          lastResults['diagnosis'] = {
+            'success': false,
+            'message':
+                'Cannot connect to API server. Check server address and network connection.',
+          };
+        } else if (lastResults['login_head'] != null &&
+            lastResults['login_head']['success'] == false) {
+          lastResults['diagnosis'] = {
+            'success': false,
+            'message':
+                'Cannot find login endpoint. API URL may be incorrect or server misconfigured.',
+          };
+        } else {
+          lastResults['diagnosis'] = {
+            'success': false,
+            'message': 'Unknown connection issue. Check server logs.',
+          };
+        }
+
+        return lastResults;
       }
 
-      // Test login endpoint with empty body
-      try {
-        final loginUrl = '$cleanUrl/api/login';
-        final loginEmptyResponse = await http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {'Content-Type': 'application/json'},
-              body: '{}',
-            )
-            .timeout(const Duration(seconds: 5));
-        results['login_empty'] = {
-          'status': loginEmptyResponse.statusCode,
-          'body': loginEmptyResponse.body.length > 1000
-              ? '${loginEmptyResponse.body.substring(0, 1000)}...'
-              : loginEmptyResponse.body,
-          'success': true, // Just checking if we get a response
-        };
-      } catch (e) {
-        results['login_empty'] = {
-          'status': 'error',
-          'message': e.toString(),
+      return {
+        'error': 'Unknown',
+        'diagnosis': {
           'success': false,
-        };
-      }
-
-      // Test login endpoint with sample credentials
-      try {
-        final loginUrl = '$cleanUrl/api/login';
-        final loginSampleResponse = await http
-            .post(
-              Uri.parse(loginUrl),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'username': 'test_user',
-                'password': 'test_password',
-              }),
-            )
-            .timeout(const Duration(seconds: 5));
-        results['login_sample'] = {
-          'status': loginSampleResponse.statusCode,
-          'body': loginSampleResponse.body.length > 1000
-              ? '${loginSampleResponse.body.substring(0, 1000)}...'
-              : loginSampleResponse.body,
-          'success': true, // Just checking if we get a response
-        };
-      } catch (e) {
-        results['login_sample'] = {
-          'status': 'error',
-          'message': e.toString(),
-          'success': false,
-        };
-      }
-
-      // Overall diagnosis
-      if (results['base_url']['success'] && results['login_head']['success']) {
-        results['diagnosis'] = {
-          'success': true,
-          'message':
-              'API connection looks good. The login endpoint is accessible.',
-        };
-      } else if (!results['base_url']['success']) {
-        results['diagnosis'] = {
-          'success': false,
-          'message':
-              'Cannot connect to API server. Check server address and network connection.',
-        };
-      } else if (!results['login_head']['success']) {
-        results['diagnosis'] = {
-          'success': false,
-          'message':
-              'Cannot find login endpoint. API URL may be incorrect or server misconfigured.',
-        };
-      } else {
-        results['diagnosis'] = {
-          'success': false,
-          'message': 'Unknown connection issue. Check server logs.',
-        };
-      }
-
-      return results;
+          'message': 'API testing failed: Unknown error',
+        }
+      };
     } catch (e) {
       return {
         'error': e.toString(),

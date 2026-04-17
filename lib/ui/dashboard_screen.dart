@@ -52,6 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   final ScrollController _mainScrollController = ScrollController();
   late TabController _tabController;
   int _currentIndex = 0;
+  bool _allowMobilePunch = false;
 
   // Add state variables for work hours
   String _monthlyWorkHours = "0.0";
@@ -120,6 +121,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Start background service for work hours
     _setupWorkHoursServices();
+
+    // Initialize permission flags from login response
+    _allowMobilePunch = _extractAllowMobilePunch(widget.userData);
 
     // Load saved stat order
     _loadStatOrder();
@@ -667,6 +671,66 @@ class _DashboardScreenState extends State<DashboardScreen>
     return null;
   }
 
+  // Extract allow_mobile_punch flag from various response shapes
+  bool _extractAllowMobilePunch(dynamic obj, [int depth = 0]) {
+    if (depth > 6) return false;
+    if (obj == null) return false;
+
+    try {
+      if (obj is Map) {
+        // direct key
+        if (obj.containsKey('allow_mobile_punch')) {
+          final v = obj['allow_mobile_punch'];
+          return _coerceToBool(v);
+        }
+
+        // nested user_data
+        if (obj.containsKey('user_data') && obj['user_data'] is Map) {
+          final v = obj['user_data']['allow_mobile_punch'];
+          if (v != null) return _coerceToBool(v);
+        }
+
+        // response_data
+        if (obj.containsKey('response_data') && obj['response_data'] is Map) {
+          final v = obj['response_data']['allow_mobile_punch'];
+          if (v != null) return _coerceToBool(v);
+          // also user_data inside response_data
+          final ud = obj['response_data']['user_data'];
+          if (ud is Map && ud.containsKey('allow_mobile_punch')) {
+            return _coerceToBool(ud['allow_mobile_punch']);
+          }
+        }
+
+        // deep search for the key
+        for (final entry in obj.entries) {
+          final val = entry.value;
+          if (val is Map || val is List) {
+            final res = _extractAllowMobilePunch(val, depth + 1);
+            if (res) return true;
+          }
+        }
+      } else if (obj is List) {
+        for (final item in obj) {
+          final res = _extractAllowMobilePunch(item, depth + 1);
+          if (res) return true;
+        }
+      }
+    } catch (e) {}
+
+    return false;
+  }
+
+  bool _coerceToBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is int) return v == 1;
+    if (v is String) {
+      final low = v.toLowerCase();
+      return low == '1' || low == 'true' || low == 'yes';
+    }
+    return false;
+  }
+
   @override
   void dispose() {
     // Cancel work hours subscriptions
@@ -686,6 +750,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     _tabController.dispose();
     _longPressTimer?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-evaluate allow_mobile_punch when userData updates
+    final updated = _extractAllowMobilePunch(widget.userData);
+    if (updated != _allowMobilePunch) {
+      setState(() {
+        _allowMobilePunch = updated;
+      });
+    }
   }
 
   @override
@@ -834,38 +910,51 @@ class _DashboardScreenState extends State<DashboardScreen>
                         scale: scaleFactor,
                         onTap: () async {
                           String? empKey = _findEmployeeKey();
-                          if (empKey != null) {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CheckInOutScreen(
-                                  headerTitle: 'Check In',
-                                  empKey: empKey,
-                                ),
-                              ),
-                            );
-                            // If the check-in screen popped with emp_key, refresh today's punches
-                            if (result is Map && result['emp_key'] != null) {
-                              final res =
-                                  await _todayPunchesApi.fetchTodayPunches(
-                                      result['emp_key'].toString());
-                              if (mounted && res['success'] == true) {
-                                setState(() {
-                                  _inPunch = res['in_punch']?.toString() ?? '';
-                                  _outPunch =
-                                      res['out_punch']?.toString() ?? '';
-                                });
-                              }
-                            }
-                          } else {
+                          if (empKey == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Employee key not found.'),
                                 backgroundColor: Colors.red,
                               ),
                             );
+                            return;
+                          }
+
+                          if (!_allowMobilePunch) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Mobile punch is disabled for your account.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CheckInOutScreen(
+                                headerTitle: 'Check In',
+                                empKey: empKey,
+                              ),
+                            ),
+                          );
+
+                          // If the check-in screen popped with emp_key, refresh today's punches
+                          if (result is Map && result['emp_key'] != null) {
+                            final res =
+                                await _todayPunchesApi.fetchTodayPunches(
+                                    result['emp_key'].toString());
+                            if (mounted && res['success'] == true) {
+                              setState(() {
+                                _inPunch = res['in_punch']?.toString() ?? '';
+                                _outPunch = res['out_punch']?.toString() ?? '';
+                              });
+                            }
                           }
                         },
+                        enabled: _allowMobilePunch,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.logout,
@@ -874,37 +963,49 @@ class _DashboardScreenState extends State<DashboardScreen>
                         scale: scaleFactor,
                         onTap: () async {
                           String? empKey = _findEmployeeKey();
-                          if (empKey != null) {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CheckInOutScreen(
-                                  headerTitle: 'Check Out',
-                                  empKey: empKey,
-                                ),
-                              ),
-                            );
-                            if (result is Map && result['emp_key'] != null) {
-                              final res =
-                                  await _todayPunchesApi.fetchTodayPunches(
-                                      result['emp_key'].toString());
-                              if (mounted && res['success'] == true) {
-                                setState(() {
-                                  _inPunch = res['in_punch']?.toString() ?? '';
-                                  _outPunch =
-                                      res['out_punch']?.toString() ?? '';
-                                });
-                              }
-                            }
-                          } else {
+                          if (empKey == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Employee key not found.'),
                                 backgroundColor: Colors.red,
                               ),
                             );
+                            return;
+                          }
+
+                          if (!_allowMobilePunch) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                    'Mobile punch is disabled for your account.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CheckInOutScreen(
+                                headerTitle: 'Check Out',
+                                empKey: empKey,
+                              ),
+                            ),
+                          );
+                          if (result is Map && result['emp_key'] != null) {
+                            final res =
+                                await _todayPunchesApi.fetchTodayPunches(
+                                    result['emp_key'].toString());
+                            if (mounted && res['success'] == true) {
+                              setState(() {
+                                _inPunch = res['in_punch']?.toString() ?? '';
+                                _outPunch = res['out_punch']?.toString() ?? '';
+                              });
+                            }
                           }
                         },
+                        enabled: _allowMobilePunch,
                       ),
                       _buildQuickActionButton(
                         icon: Icons.history,
@@ -1406,6 +1507,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required Color color,
     double scale = 1.0,
     VoidCallback? onTap,
+    bool enabled = true,
   }) {
     return Expanded(
       child: GestureDetector(
@@ -1417,17 +1519,18 @@ class _DashboardScreenState extends State<DashboardScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: color.withAlpha(26),
+                color: (enabled ? color : Colors.grey).withAlpha(26),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: enabled ? color : Colors.grey, size: 22),
             ),
             const SizedBox(height: 8),
             Flexible(
               child: Text(
                 label,
                 style: TextStyle(
-                    fontSize: 12 * scale, color: const Color(0xFF555555)),
+                    fontSize: 12 * scale,
+                    color: enabled ? const Color(0xFF555555) : Colors.grey),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
                 textAlign: TextAlign.center,
