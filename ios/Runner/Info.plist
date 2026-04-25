@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>App needs camera to capture attendance photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>App needs access to photos to pick images.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>App needs to save images to your photo library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>App needs microphone to record audio for videos.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>App needs location to record attendance location.</string>
 </dict>
 </plist>

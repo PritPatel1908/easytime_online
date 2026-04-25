@@ -24,7 +24,8 @@ class CheckInOutScreen extends StatefulWidget {
   State<CheckInOutScreen> createState() => _CheckInOutScreenState();
 }
 
-class _CheckInOutScreenState extends State<CheckInOutScreen> {
+class _CheckInOutScreenState extends State<CheckInOutScreen>
+    with WidgetsBindingObserver {
   final TodayPunchesApi _todayPunchesApi = TodayPunchesApi();
   StreamSubscription? _punchSubscription;
 
@@ -36,6 +37,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
+  // Guards to avoid requesting the same permission multiple times
+  bool _locationRequested = false;
+  bool _cameraInitStarted = false;
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _remarkController = TextEditingController();
@@ -43,6 +47,8 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
 
     // Listen to global punch stream (if any part of the app emits updates)
     _punchSubscription = _todayPunchesApi.punchStream.listen((result) {
@@ -67,14 +73,26 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
     });
 
     // Fetch default location and fill into location field
-    _fetchDefaultLocation();
-    // Open front camera (selfie) after first frame so user can take photo immediately
+    // Fetch default location first, then initialize camera.
+    // This sequences permission dialogs to avoid overlapping prompts
+    // and prevents duplicate permission requests on fresh installs.
+    _prepareLocationAndCamera();
+  }
+
+  Future<void> _prepareLocationAndCamera() async {
+    await _fetchDefaultLocation();
+    // Small delay to let the permission dialog fully settle and app resume.
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initCamera();
     });
   }
 
   Future<void> _fetchDefaultLocation() async {
+    // Avoid multiple concurrent permission requests
+    if (_locationRequested) return;
+    _locationRequested = true;
     try {
       // Use default API key configured in LocationService
       final res = await LocationService.getLocationDetails();
@@ -97,6 +115,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     try {
       _cameraController?.dispose();
     } catch (_) {}
@@ -104,6 +123,29 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
     _locationController.dispose();
     _remarkController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When the app resumes, try to initialize the camera if not ready.
+    if (state == AppLifecycleState.resumed) {
+      if (!_isCameraInitialized && !_cameraInitStarted) {
+        _initCamera();
+      }
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // Release camera while app is not active to avoid resource issues.
+      try {
+        _cameraController?.dispose();
+      } catch (_) {}
+      _cameraController = null;
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = false;
+        });
+      }
+      _cameraInitStarted = false;
+    }
   }
 
   void _showMessage(String text) {
@@ -140,6 +182,10 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
 
   // Initialize front camera for live preview embedded in page.
   Future<void> _initCamera() async {
+    // Prevent multiple camera init attempts which can trigger
+    // duplicate camera permission dialogs on some devices.
+    if (_cameraInitStarted) return;
+    _cameraInitStarted = true;
     try {
       // small delay to ensure UI is ready
       await Future.delayed(const Duration(milliseconds: 150));
@@ -164,9 +210,14 @@ class _CheckInOutScreenState extends State<CheckInOutScreen> {
       });
     } catch (e) {
       // leave fallback to image_picker
-      setState(() {
-        _isCameraInitialized = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = false;
+        });
+      }
+    } finally {
+      // allow future attempts when appropriate (e.g., after resume)
+      _cameraInitStarted = false;
     }
   }
 
