@@ -1150,7 +1150,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           },
           backgroundColor: Colors.white,
           elevation: 0,
-          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.dashboard_outlined),
