@@ -14,6 +14,7 @@ import 'package:easytime_online/ui/pending_request_screen.dart';
 import 'package:easytime_online/ui/check_in_out_screen.dart';
 import 'package:easytime_online/ui/manual_attendance_list_screen.dart';
 import 'package:easytime_online/api/status_pie_chart_api.dart';
+import 'package:easytime_online/ui/change_password_screen.dart';
 import 'package:easytime_online/ui/attendance_history_screen.dart';
 import 'package:easytime_online/ui/time_card_screen.dart';
 import 'package:easytime_online/ui/my_punches_screen.dart';
@@ -422,6 +423,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   // Helper method to find employee key in userData
   String? _findEmployeeKey() {
+    // Prefer the explicit empKey passed to the Dashboard if available
+    try {
+      final String fromWidget = widget.empKey;
+      if (fromWidget.trim().isNotEmpty) return fromWidget.trim();
+    } catch (_) {}
+
+    // If userData is not provided, return null (no further fallback)
     if (widget.userData == null) {
       if (kDebugMode) {}
       return null;
@@ -802,12 +810,41 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   const SizedBox(width: 12),
                   PopupMenuButton<String>(
-                    onSelected: (value) {
+                    onSelected: (value) async {
                       if (value == 'logout') {
                         _performLogout();
+                      } else if (value == 'change_password') {
+                        String? empKey = _findEmployeeKey();
+                        if (empKey != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChangePasswordScreen(
+                                empKey: empKey,
+                              ),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Employee key not found.'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       }
                     },
                     itemBuilder: (context) => [
+                      const PopupMenuItem<String>(
+                        value: 'change_password',
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock, color: Colors.black54),
+                            SizedBox(width: 8),
+                            Text('Change Password'),
+                          ],
+                        ),
+                      ),
                       const PopupMenuItem<String>(
                         value: 'logout',
                         child: Row(
