@@ -48,10 +48,21 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // Ensure R8/ProGuard uses our rules so Conscrypt optional references
+            // do not break minification for release builds.
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
 }

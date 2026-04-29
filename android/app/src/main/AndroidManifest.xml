@@ -5,10 +5,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:label="EasyTime Online"
-        android:name="${applicationName}"
+        android:name=".MyApplication"
         android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".MainActivity"

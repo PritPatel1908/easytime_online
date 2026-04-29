@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:easytime_online/api/client_codes_fetch_api.dart';
+import 'dart:io';
+import 'package:easytime_online/api/tls_http_overrides.dart';
+import 'package:flutter/foundation.dart' as foundation;
 import 'package:easytime_online/ui/dashboard_screen.dart';
 import 'package:easytime_online/ui/splash_screen.dart';
 import 'package:flutter/material.dart';
@@ -90,6 +93,11 @@ class SystemUIObserver with WidgetsBindingObserver {
 }
 
 Future<void> main() async {
+  // In debug mode allow accepting bad certs for quick testing only.
+  // In production this stays false to enforce proper TLS validation.
+  HttpOverrides.global =
+      DebugHttpOverrides(allowBadCert: foundation.kDebugMode);
+
   WidgetsFlutterBinding.ensureInitialized();
   // Ensure a local base API URL is set when none exists (useful for local dev/testing)
   try {
