@@ -1353,8 +1353,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       onTapUp: (_) => _cancelLongHold(),
       onTapCancel: () => _cancelLongHold(),
       child: DragTarget<String>(
-        onWillAcceptWithDetails: (details) =>
-            details.data != null && details.data != id,
+        onWillAcceptWithDetails: (details) => details.data != id,
         onAcceptWithDetails: (details) {
           final sourceId = details.data;
           // swap positions
@@ -2126,7 +2125,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     // Convert map entries to a list and sort according to preferred order
     final entries = statusMap.entries.toList();
 
-    int _orderIndex(String key) {
+    int orderIndex(String key) {
       final keyUpper = key.toString().toUpperCase();
       // Check by code first
       final codeIdx = preferredOrderCodes.indexOf(keyUpper);
@@ -2145,7 +2144,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       return preferredOrderLabels.length; // others go last
     }
 
-    entries.sort((a, b) => _orderIndex(a.key).compareTo(_orderIndex(b.key)));
+    entries.sort((a, b) => orderIndex(a.key).compareTo(orderIndex(b.key)));
 
     for (final entry in entries) {
       final key = entry.key;

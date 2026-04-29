@@ -18,8 +18,9 @@ class ManualAttendanceApi {
     try {
       final baseUrl = await getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl =
           '$cleanUrl/api/get_manual_attendance_applications_by_emp_keys';
 
@@ -79,8 +80,9 @@ class ManualAttendanceApi {
     try {
       final baseUrl = await getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl =
           '$cleanUrl/api/validate_and_submit_manual_attendance_application';
 

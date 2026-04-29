@@ -20,6 +20,8 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
   bool _isLoading = false;
   String _error = '';
   List<Map<String, dynamic>> _items = [];
+  bool _hasReadPermission = true;
+  bool _hasCreatePermission = true;
 
   Future<void> _load() async {
     setState(() {
@@ -139,7 +141,50 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _initRightsAndLoad();
+  }
+
+  Future<void> _initRightsAndLoad() async {
+    await _loadUserRights();
+    if (_hasReadPermission) {
+      await _load();
+    } else {
+      setState(() {
+        _isLoading = false;
+        _items = [];
+      });
+    }
+  }
+
+  Future<void> _loadUserRights() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('user_rights_json') ??
+          prefs.getString('user_rights') ??
+          '';
+      if (s.isNotEmpty) {
+        final Map<String, dynamic> rights = json.decode(s);
+        final mp = rights['manual_punch'];
+        if (mp is Map) {
+          _hasCreatePermission = _coerceToBool(mp['create']);
+          _hasReadPermission = _coerceToBool(mp['read']);
+        }
+      }
+    } catch (e) {
+      _hasCreatePermission = true;
+      _hasReadPermission = true;
+    }
+  }
+
+  bool _coerceToBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is int) return v == 1;
+    if (v is String) {
+      final low = v.toLowerCase();
+      return low == '1' || low == 'true' || low == 'yes';
+    }
+    return false;
   }
 
   @override
@@ -188,15 +233,25 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
           children: [
             const SizedBox(height: 6),
             ElevatedButton.icon(
-              onPressed: () async {
-                final res = await Navigator.push<bool?>(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) =>
-                          ManualPunchApplicationScreen(empKey: widget.empKey)),
-                );
-                if (res == true) _load();
-              },
+              onPressed: _hasCreatePermission
+                  ? () async {
+                      final res = await Navigator.push<bool?>(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => ManualPunchApplicationScreen(
+                                empKey: widget.empKey)),
+                      );
+                      if (res == true) _load();
+                    }
+                  : () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Permission denied: cannot create manual punch'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    },
               icon: const Icon(Icons.add),
               label: const Text('New Manual Punch'),
               style: ElevatedButton.styleFrom(
@@ -243,266 +298,293 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                     : _error.isNotEmpty
                         ? ListView(
                             children: [Center(child: Text('Error: $_error'))])
-                        : _items.isEmpty
+                        : !_hasReadPermission
                             ? ListView(
                                 physics: const AlwaysScrollableScrollPhysics(),
                                 children: const [
-                                    Center(child: Text('No manual punches'))
+                                    Center(
+                                        child: Text(
+                                            'You do not have permission to view manual punches'))
                                   ])
-                            : ListView.separated(
-                                padding: const EdgeInsets.all(12),
-                                itemCount: _items.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (_, index) {
-                                  final a = _items[index];
+                            : _items.isEmpty
+                                ? ListView(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    children: const [
+                                        Center(child: Text('No manual punches'))
+                                      ])
+                                : ListView.separated(
+                                    padding: const EdgeInsets.all(12),
+                                    itemCount: _items.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 8),
+                                    itemBuilder: (_, index) {
+                                      final a = _items[index];
 
-                                  String reason = (a['miss_punch_reason'] ??
-                                          a['reason'] ??
-                                          '')
-                                      .toString();
-                                  final punchType = a['punch_type_name'] ??
-                                      a['miss_punch_type'] ??
-                                      a['punch_type'] ??
-                                      '';
-
-                                  final dateRaw =
-                                      (a['miss_punch_application_date'] ??
-                                              a['miss_punch_created_at'] ??
+                                      String reason = (a['miss_punch_reason'] ??
+                                              a['reason'] ??
                                               '')
                                           .toString();
-                                  String date = '';
-                                  if (dateRaw.isNotEmpty) {
-                                    try {
-                                      final dt = DateTime.tryParse(dateRaw);
-                                      if (dt != null) {
-                                        date =
-                                            '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-                                      } else {
-                                        date = dateRaw.split('T').first;
-                                      }
-                                    } catch (_) {
-                                      date = dateRaw.split('T').first;
-                                    }
-                                  }
+                                      final punchType = a['punch_type_name'] ??
+                                          a['miss_punch_type'] ??
+                                          a['punch_type'] ??
+                                          '';
 
-                                  final time = _formatTime(
-                                      a['punch_time_only'] ??
-                                          a['miss_punch_time'] ??
-                                          '');
-                                  final formattedTime =
-                                      date; // show date as formattedTime above card if needed
-
-                                  String empDisplay = '';
-                                  try {
-                                    final emps =
-                                        a['employees'] as List<dynamic>? ?? [];
-                                    if (emps.isNotEmpty) {
-                                      final displays = <String>[];
-                                      for (final e in emps) {
+                                      final dateRaw =
+                                          (a['miss_punch_application_date'] ??
+                                                  a['miss_punch_created_at'] ??
+                                                  '')
+                                              .toString();
+                                      String date = '';
+                                      if (dateRaw.isNotEmpty) {
                                         try {
-                                          final m = e is Map<String, dynamic>
-                                              ? e
-                                              : Map<String, dynamic>.from(
-                                                  e as Map);
-                                          String d = (m['emp_display'] ??
-                                                      m['emp_name'] ??
-                                                      m['emp_code'] ??
-                                                      m['emp_key'])
-                                                  ?.toString() ??
-                                              '';
-                                          final mbr = RegExp(r'\[([^\]]+)\]')
-                                              .firstMatch(d);
-                                          if (mbr != null) {
-                                            displays.add(mbr.group(1)!);
-                                          } else if (d.trim().isNotEmpty)
-                                            displays.add(d.trim());
-                                        } catch (_) {}
-                                      }
-                                      empDisplay = displays.join(', ');
-                                    }
-                                  } catch (_) {}
-
-                                  final punchTypeStr = punchType.toString();
-                                  String empClean = empDisplay
-                                      .replaceAll(RegExp(r'\s+'), ' ')
-                                      .trim();
-
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      InkWell(
-                                        onTap: () async {
-                                          // open detail screen for this record
-                                          final emps = (a['employees']
-                                                  as List<dynamic>?) ??
-                                              [];
-                                          String? empName;
-                                          if (emps.isNotEmpty) {
-                                            final displays = <String>[];
-                                            for (final e in emps) {
-                                              try {
-                                                final m = e
-                                                        is Map<String, dynamic>
-                                                    ? e
-                                                    : Map<String, dynamic>.from(
-                                                        e as Map);
-                                                String d = (m['emp_display'] ??
-                                                            m['emp_name'] ??
-                                                            m['emp_code'] ??
-                                                            m['emp_key'])
-                                                        ?.toString() ??
-                                                    '';
-                                                final mbr =
-                                                    RegExp(r'\[([^\]]+)\]')
-                                                        .firstMatch(d);
-                                                if (mbr != null) {
-                                                  displays.add(mbr.group(1)!);
-                                                } else if (d.trim().isNotEmpty)
-                                                  displays.add(d.trim());
-                                              } catch (_) {}
-                                            }
-                                            empName = displays.join(', ');
+                                          final dt = DateTime.tryParse(dateRaw);
+                                          if (dt != null) {
+                                            date =
+                                                '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+                                          } else {
+                                            date = dateRaw.split('T').first;
                                           }
-                                          await Navigator.push<bool?>(
-                                            context,
-                                            MaterialPageRoute(
-                                                builder: (_) =>
-                                                    ManualPunchDetailScreen(
-                                                        record: a,
-                                                        empName: empName)),
-                                          );
-                                        },
-                                        child: Card(
-                                          elevation: 1,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8)),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(12.0),
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                CircleAvatar(
-                                                  radius: 20,
-                                                  backgroundColor:
-                                                      Colors.blueAccent,
-                                                  child: empClean.isNotEmpty
-                                                      ? Text(
-                                                          _initials(empClean),
-                                                          style: const TextStyle(
+                                        } catch (_) {
+                                          date = dateRaw.split('T').first;
+                                        }
+                                      }
+
+                                      final time = _formatTime(
+                                          a['punch_time_only'] ??
+                                              a['miss_punch_time'] ??
+                                              '');
+                                      final formattedTime =
+                                          date; // show date as formattedTime above card if needed
+
+                                      String empDisplay = '';
+                                      try {
+                                        final emps =
+                                            a['employees'] as List<dynamic>? ??
+                                                [];
+                                        if (emps.isNotEmpty) {
+                                          final displays = <String>[];
+                                          for (final e in emps) {
+                                            try {
+                                              final m = e
+                                                      is Map<String, dynamic>
+                                                  ? e
+                                                  : Map<String, dynamic>.from(
+                                                      e as Map);
+                                              String d = (m['emp_display'] ??
+                                                          m['emp_name'] ??
+                                                          m['emp_code'] ??
+                                                          m['emp_key'])
+                                                      ?.toString() ??
+                                                  '';
+                                              final mbr =
+                                                  RegExp(r'\[([^\]]+)\]')
+                                                      .firstMatch(d);
+                                              if (mbr != null) {
+                                                displays.add(mbr.group(1)!);
+                                              } else if (d.trim().isNotEmpty)
+                                                displays.add(d.trim());
+                                            } catch (_) {}
+                                          }
+                                          empDisplay = displays.join(', ');
+                                        }
+                                      } catch (_) {}
+
+                                      final punchTypeStr = punchType.toString();
+                                      String empClean = empDisplay
+                                          .replaceAll(RegExp(r'\s+'), ' ')
+                                          .trim();
+
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          InkWell(
+                                            onTap: () async {
+                                              // open detail screen for this record
+                                              final emps = (a['employees']
+                                                      as List<dynamic>?) ??
+                                                  [];
+                                              String? empName;
+                                              if (emps.isNotEmpty) {
+                                                final displays = <String>[];
+                                                for (final e in emps) {
+                                                  try {
+                                                    final m = e is Map<String,
+                                                            dynamic>
+                                                        ? e
+                                                        : Map<String,
+                                                                dynamic>.from(
+                                                            e as Map);
+                                                    String d = (m['emp_display'] ??
+                                                                m['emp_name'] ??
+                                                                m['emp_code'] ??
+                                                                m['emp_key'])
+                                                            ?.toString() ??
+                                                        '';
+                                                    final mbr =
+                                                        RegExp(r'\[([^\]]+)\]')
+                                                            .firstMatch(d);
+                                                    if (mbr != null) {
+                                                      displays
+                                                          .add(mbr.group(1)!);
+                                                    } else if (d
+                                                        .trim()
+                                                        .isNotEmpty)
+                                                      displays.add(d.trim());
+                                                  } catch (_) {}
+                                                }
+                                                empName = displays.join(', ');
+                                              }
+                                              await Navigator.push<bool?>(
+                                                context,
+                                                MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        ManualPunchDetailScreen(
+                                                            record: a,
+                                                            empName: empName)),
+                                              );
+                                            },
+                                            child: Card(
+                                              elevation: 1,
+                                              shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8)),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(12.0),
+                                                child: Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    CircleAvatar(
+                                                      radius: 20,
+                                                      backgroundColor:
+                                                          Colors.blueAccent,
+                                                      child: empClean.isNotEmpty
+                                                          ? Text(
+                                                              _initials(
+                                                                  empClean),
+                                                              style: const TextStyle(
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600))
+                                                          : const Icon(
+                                                              Icons.edit,
                                                               color:
                                                                   Colors.white,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .w600))
-                                                      : const Icon(Icons.edit,
-                                                          color: Colors.white,
-                                                          size: 18),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(punchTypeStr,
-                                                          style:
-                                                              const TextStyle(
+                                                              size: 18),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(punchTypeStr,
+                                                              style: const TextStyle(
                                                                   fontWeight:
                                                                       FontWeight
                                                                           .w700,
                                                                   fontSize:
                                                                       14)),
-                                                      if (empClean.isNotEmpty)
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .only(
-                                                                  top: 4.0),
-                                                          child: Text(empClean,
-                                                              style: const TextStyle(
-                                                                  fontSize: 13,
-                                                                  color: Colors
-                                                                      .black87)),
-                                                        ),
-                                                      if (reason.isNotEmpty)
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .only(
-                                                                  top: 8.0),
-                                                          child: Text(reason,
-                                                              style: const TextStyle(
-                                                                  color: Colors
-                                                                      .grey),
-                                                              maxLines: 2,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.end,
-                                                  children: [
-                                                    Text(
-                                                        date.isNotEmpty
-                                                            ? date
-                                                            : '-',
-                                                        style: const TextStyle(
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .bold)),
-                                                    if (time.isNotEmpty)
-                                                      Padding(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .only(
-                                                                top: 6.0,
-                                                                bottom: 6.0),
-                                                        child: Text(time,
+                                                          if (empClean
+                                                              .isNotEmpty)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .only(
+                                                                      top: 4.0),
+                                                              child: Text(
+                                                                  empClean,
+                                                                  style: const TextStyle(
+                                                                      fontSize:
+                                                                          13,
+                                                                      color: Colors
+                                                                          .black87)),
+                                                            ),
+                                                          if (reason.isNotEmpty)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets
+                                                                      .only(
+                                                                      top: 8.0),
+                                                              child: Text(
+                                                                  reason,
+                                                                  style: const TextStyle(
+                                                                      color: Colors
+                                                                          .grey),
+                                                                  maxLines: 2,
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .end,
+                                                      children: [
+                                                        Text(
+                                                            date.isNotEmpty
+                                                                ? date
+                                                                : '-',
                                                             style: const TextStyle(
                                                                 fontWeight:
                                                                     FontWeight
                                                                         .bold)),
-                                                      ),
-                                                    Container(
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                          horizontal: 8,
-                                                          vertical: 6),
-                                                      decoration: BoxDecoration(
-                                                          color:
-                                                              Colors.grey[200],
-                                                          borderRadius:
-                                                              BorderRadius
-                                                                  .circular(
-                                                                      12)),
-                                                      child: Text(
-                                                          '${a['approval_status_name'] ?? a['approval_status_key'] ?? '-'}',
-                                                          style: const TextStyle(
+                                                        if (time.isNotEmpty)
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .only(
+                                                                    top: 6.0,
+                                                                    bottom:
+                                                                        6.0),
+                                                            child: Text(time,
+                                                                style: const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold)),
+                                                          ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                                  horizontal: 8,
+                                                                  vertical: 6),
+                                                          decoration: BoxDecoration(
                                                               color: Colors
-                                                                  .black54,
-                                                              fontSize: 12)),
+                                                                  .grey[200],
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          12)),
+                                                          child: Text(
+                                                              '${a['approval_status_name'] ?? a['approval_status_key'] ?? '-'}',
+                                                              style: const TextStyle(
+                                                                  color: Colors
+                                                                      .black54,
+                                                                  fontSize:
+                                                                      12)),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),
-                                              ],
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
+                                        ],
+                                      );
+                                    },
+                                  ),
               ),
             ),
           ],

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:easytime_online/api/pending_requests_api.dart';
 import 'package:easytime_online/ui/generic_request_detail_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PendingRequestScreen extends StatefulWidget {
   final String empKey;
@@ -19,6 +21,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
   String _error = '';
   List<Map<String, dynamic>> _requests = [];
   String _selectedType = 'all';
+  bool _canApproveAllEntities = false;
 
   static const Map<String, String> _typeOptions = {
     'all': 'All',
@@ -50,7 +53,52 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadRequests();
+    _initRightsAndLoadRequests();
+  }
+
+  Future<void> _initRightsAndLoadRequests() async {
+    await _loadUserRights();
+    await _loadRequests();
+  }
+
+  Future<void> _loadUserRights() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('user_rights_json') ??
+          prefs.getString('user_rights') ??
+          '';
+      if (s.isNotEmpty) {
+        final rights = json.decode(s) as Map<String, dynamic>;
+        final la =
+            _coerceToBool((rights['leave_application'] ?? {})['approve']);
+        final mp = _coerceToBool((rights['manual_punch'] ?? {})['approve']);
+        final ma =
+            _coerceToBool((rights['manual_attendance'] ?? {})['approve']) ||
+                _coerceToBool((rights['manual_att'] ?? {})['approve']);
+        setState(() {
+          _canApproveAllEntities = la && mp && ma;
+        });
+      } else {
+        setState(() {
+          _canApproveAllEntities = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _canApproveAllEntities = false;
+      });
+    }
+  }
+
+  bool _coerceToBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is int) return v == 1;
+    if (v is String) {
+      final low = v.toLowerCase();
+      return low == '1' || low == 'true' || low == 'yes';
+    }
+    return false;
   }
 
   @override
@@ -199,8 +247,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
       'request_id'
     ];
     for (final kk in keys) {
-      if (r.containsKey(kk) && r[kk] != null && r[kk].toString().isNotEmpty)
+      if (r.containsKey(kk) && r[kk] != null && r[kk].toString().isNotEmpty) {
         return r[kk].toString();
+      }
     }
     return '';
   }
@@ -209,7 +258,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
     if (id.isEmpty) return false;
     if (rr.containsKey('request_details_key') &&
         rr['request_details_key'] != null &&
-        rr['request_details_key'].toString() == id) return true;
+        rr['request_details_key'].toString() == id) {
+      return true;
+    }
     final keys = [
       'id',
       'entity_endorsement_flow_details_id',
@@ -217,8 +268,9 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
       'request_id'
     ];
     for (final kk in keys) {
-      if (rr.containsKey(kk) && rr[kk] != null && rr[kk].toString() == id)
+      if (rr.containsKey(kk) && rr[kk] != null && rr[kk].toString() == id) {
         return true;
+      }
     }
     return false;
   }
@@ -287,14 +339,17 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
         final data = res['data'];
         if (data is Map && data['processed'] is List) {
           for (final p in data['processed']) {
-            if (p is Map && p['id'] != null)
+            if (p is Map && p['id'] != null) {
               processedIds.add(p['id'].toString());
+            }
           }
         }
       } catch (_) {}
       if (processedIds.isEmpty) {
         // fallback: flatten groups
-        for (final v in groups.values) processedIds.addAll(v);
+        for (final v in groups.values) {
+          processedIds.addAll(v);
+        }
       }
 
       setState(() {
@@ -431,21 +486,25 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
         if (data is Map) {
           if (data['processed'] is List) {
             for (final p in data['processed']) {
-              if (p is Map && p['id'] != null)
+              if (p is Map && p['id'] != null) {
                 processedIds.add(p['id'].toString());
+              }
             }
           }
           if (data['failed'] is List) {
             for (final f in data['failed']) {
-              if (f is Map && f['id'] != null)
+              if (f is Map && f['id'] != null) {
                 failedIds.add(f['id'].toString());
+              }
             }
           }
         }
       } catch (_) {}
 
       if (processedIds.isEmpty) {
-        for (final v in groups.values) processedIds.addAll(v);
+        for (final v in groups.values) {
+          processedIds.addAll(v);
+        }
       }
 
       setState(() {
@@ -729,14 +788,16 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FloatingActionButton(
-                  heroTag: 'bulk_approve',
-                  onPressed: _bulkApproveSelected,
-                  backgroundColor: Colors.green,
-                  tooltip: 'Approve selected',
-                  child: const Icon(Icons.check),
-                ),
-                const SizedBox(height: 10),
+                if (_canApproveAllEntities) ...[
+                  FloatingActionButton(
+                    heroTag: 'bulk_approve',
+                    onPressed: _bulkApproveSelected,
+                    backgroundColor: Colors.green,
+                    tooltip: 'Approve selected',
+                    child: const Icon(Icons.check),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 FloatingActionButton(
                   heroTag: 'bulk_reject',
                   onPressed: _bulkRejectSelected,
@@ -1195,33 +1256,35 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                         },
                                                 ),
                                               ),
-                                              const SizedBox(width: 8),
-                                              // approve
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                    color: Colors.green[50],
-                                                    shape: BoxShape.circle),
-                                                child: IconButton(
-                                                  icon: Icon(
-                                                    Icons.check,
-                                                    color: _selectedItems
+                                              // approve (only show when all three approve rights are true)
+                                              if (_canApproveAllEntities) ...[
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  decoration: BoxDecoration(
+                                                      color: Colors.green[50],
+                                                      shape: BoxShape.circle),
+                                                  child: IconButton(
+                                                    icon: Icon(
+                                                      Icons.check,
+                                                      color: _selectedItems
+                                                              .contains(itemKey)
+                                                          ? Colors.grey
+                                                          : Colors.green,
+                                                      size: 20,
+                                                    ),
+                                                    onPressed: _selectedItems
                                                             .contains(itemKey)
-                                                        ? Colors.grey
-                                                        : Colors.green,
-                                                    size: 20,
+                                                        ? null
+                                                        : () {
+                                                            _approveSingle(
+                                                                itemKey,
+                                                                r,
+                                                                displayTitle);
+                                                          },
                                                   ),
-                                                  onPressed: _selectedItems
-                                                          .contains(itemKey)
-                                                      ? null
-                                                      : () {
-                                                          _approveSingle(
-                                                              itemKey,
-                                                              r,
-                                                              displayTitle);
-                                                        },
                                                 ),
-                                              ),
-                                              const SizedBox(width: 8),
+                                                const SizedBox(width: 8),
+                                              ],
                                               // reject
                                               Container(
                                                 decoration: BoxDecoration(

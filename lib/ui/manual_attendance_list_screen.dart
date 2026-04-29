@@ -23,6 +23,8 @@ class _ManualAttendanceListScreenState
   bool _isLoading = false;
   String _error = '';
   List<Map<String, dynamic>> _items = [];
+  bool _hasReadPermission = true;
+  bool _hasCreatePermission = true;
 
   Future<void> _load() async {
     setState(() {
@@ -123,7 +125,50 @@ class _ManualAttendanceListScreenState
   @override
   void initState() {
     super.initState();
-    _load();
+    _initRightsAndLoad();
+  }
+
+  Future<void> _initRightsAndLoad() async {
+    await _loadUserRights();
+    if (_hasReadPermission) {
+      await _load();
+    } else {
+      setState(() {
+        _isLoading = false;
+        _items = [];
+      });
+    }
+  }
+
+  Future<void> _loadUserRights() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('user_rights_json') ??
+          prefs.getString('user_rights') ??
+          '';
+      if (s.isNotEmpty) {
+        final Map<String, dynamic> rights = json.decode(s);
+        final ma = rights['manual_attendance'] ?? rights['manual_att'];
+        if (ma is Map) {
+          _hasCreatePermission = _coerceToBool(ma['create']);
+          _hasReadPermission = _coerceToBool(ma['read']);
+        }
+      }
+    } catch (e) {
+      _hasCreatePermission = true;
+      _hasReadPermission = true;
+    }
+  }
+
+  bool _coerceToBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is int) return v == 1;
+    if (v is String) {
+      final low = v.toLowerCase();
+      return low == '1' || low == 'true' || low == 'yes';
+    }
+    return false;
   }
 
   @override
@@ -167,17 +212,28 @@ class _ManualAttendanceListScreenState
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           const SizedBox(height: 6),
           ElevatedButton.icon(
-            onPressed: () async {
-              final baseUrl = await ManualAttendanceApi.getBaseApiUrl();
-              final res = await Navigator.push<bool?>(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => ManualAttendancePage(
-                        empKey: widget.empKey,
-                        service: ManualAttendanceService(baseUrl: baseUrl))),
-              );
-              if (res == true) _load();
-            },
+            onPressed: _hasCreatePermission
+                ? () async {
+                    final baseUrl = await ManualAttendanceApi.getBaseApiUrl();
+                    final res = await Navigator.push<bool?>(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ManualAttendancePage(
+                              empKey: widget.empKey,
+                              service:
+                                  ManualAttendanceService(baseUrl: baseUrl))),
+                    );
+                    if (res == true) _load();
+                  }
+                : () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Permission denied: cannot create manual attendance'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  },
             icon: const Icon(Icons.add),
             label: const Text('New Manual Attendance'),
             style: ElevatedButton.styleFrom(
@@ -224,243 +280,268 @@ class _ManualAttendanceListScreenState
                   : _error.isNotEmpty
                       ? ListView(
                           children: [Center(child: Text('Error: $_error'))])
-                      : _items.isEmpty
+                      : !_hasReadPermission
                           ? ListView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               children: const [
-                                  Center(child: Text('No manual attendance'))
+                                  Center(
+                                      child: Text(
+                                          'You do not have permission to view manual attendance'))
                                 ])
-                          : ListView.separated(
-                              padding: const EdgeInsets.all(12),
-                              itemCount: _items.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 8),
-                              itemBuilder: (_, index) {
-                                final a = _items[index];
-                                final inTime = (a['manual_att_in_time'] ??
-                                        a['in_time'] ??
-                                        '')
-                                    .toString();
-                                final outTime = (a['manual_att_out_time'] ??
-                                        a['out_time'] ??
-                                        '')
-                                    .toString();
-                                final dateRaw =
-                                    (a['manual_att_application_date'] ??
-                                            a['manual_att_created_at'] ??
+                          : _items.isEmpty
+                              ? ListView(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  children: const [
+                                      Center(
+                                          child: Text('No manual attendance'))
+                                    ])
+                              : ListView.separated(
+                                  padding: const EdgeInsets.all(12),
+                                  itemCount: _items.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (_, index) {
+                                    final a = _items[index];
+                                    final inTime = (a['manual_att_in_time'] ??
+                                            a['in_time'] ??
                                             '')
                                         .toString();
-                                String date = '';
-                                if (dateRaw.isNotEmpty) {
-                                  try {
-                                    final dt = DateTime.tryParse(dateRaw);
-                                    if (dt != null)
-                                      date =
-                                          '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-                                    else
-                                      date = dateRaw.split('T').first;
-                                  } catch (_) {
-                                    date = dateRaw.split('T').first;
-                                  }
-                                }
-
-                                String empDisplay = '';
-                                try {
-                                  final emps =
-                                      a['employees'] as List<dynamic>? ?? [];
-                                  if (emps.isNotEmpty) {
-                                    final displays = <String>[];
-                                    for (final e in emps) {
+                                    final outTime = (a['manual_att_out_time'] ??
+                                            a['out_time'] ??
+                                            '')
+                                        .toString();
+                                    final dateRaw =
+                                        (a['manual_att_application_date'] ??
+                                                a['manual_att_created_at'] ??
+                                                '')
+                                            .toString();
+                                    String date = '';
+                                    if (dateRaw.isNotEmpty) {
                                       try {
-                                        final m = e is Map<String, dynamic>
-                                            ? e
-                                            : Map<String, dynamic>.from(
-                                                e as Map);
-                                        String d = (m['emp_display'] ??
-                                                    m['emp_name'] ??
-                                                    m['emp_code'] ??
-                                                    m['emp_key'])
-                                                ?.toString() ??
-                                            '';
-                                        final mbr = RegExp(r'\[([^\]]+)\]')
-                                            .firstMatch(d);
-                                        if (mbr != null)
-                                          displays.add(mbr.group(1)!);
-                                        else if (d.trim().isNotEmpty)
-                                          displays.add(d.trim());
-                                      } catch (_) {}
+                                        final dt = DateTime.tryParse(dateRaw);
+                                        if (dt != null) {
+                                          date =
+                                              '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+                                        } else {
+                                          date = dateRaw.split('T').first;
+                                        }
+                                      } catch (_) {
+                                        date = dateRaw.split('T').first;
+                                      }
                                     }
-                                    empDisplay = displays.join(', ');
-                                  }
-                                } catch (_) {}
 
-                                final empClean = empDisplay
-                                    .replaceAll(RegExp(r'\s+'), ' ')
-                                    .trim();
-
-                                return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      InkWell(
-                                        onTap: () async {
-                                          // reuse manual punch detail screen for generic view if needed
-                                          String? empName;
-                                          final emps = (a['employees']
-                                                  as List<dynamic>?) ??
+                                    String empDisplay = '';
+                                    try {
+                                      final emps =
+                                          a['employees'] as List<dynamic>? ??
                                               [];
-                                          if (emps.isNotEmpty) {
-                                            final displays = <String>[];
-                                            for (final e in emps) {
-                                              try {
-                                                final m = e
-                                                        is Map<String, dynamic>
-                                                    ? e
-                                                    : Map<String, dynamic>.from(
-                                                        e as Map);
-                                                String d = (m['emp_display'] ??
-                                                            m['emp_name'] ??
-                                                            m['emp_code'] ??
-                                                            m['emp_key'])
-                                                        ?.toString() ??
-                                                    '';
-                                                final mbr =
-                                                    RegExp(r'\[([^\]]+)\]')
-                                                        .firstMatch(d);
-                                                if (mbr != null)
-                                                  displays.add(mbr.group(1)!);
-                                                else if (d.trim().isNotEmpty)
-                                                  displays.add(d.trim());
-                                              } catch (_) {}
-                                            }
-                                            empName = displays.join(', ');
-                                          }
-                                          await Navigator.push<bool?>(
-                                              context,
-                                              MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      ManualAttendanceDetailScreen(
-                                                          record: a,
-                                                          empName: empName)));
-                                        },
-                                        child: Card(
-                                          elevation: 1,
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8)),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(12.0),
-                                            child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  CircleAvatar(
-                                                      radius: 20,
-                                                      backgroundColor: Colors
-                                                          .green,
-                                                      child: empClean.isNotEmpty
-                                                          ? Text(
-                                                              _initials(
-                                                                  empClean),
-                                                              style: const TextStyle(
+                                      if (emps.isNotEmpty) {
+                                        final displays = <String>[];
+                                        for (final e in emps) {
+                                          try {
+                                            final m = e is Map<String, dynamic>
+                                                ? e
+                                                : Map<String, dynamic>.from(
+                                                    e as Map);
+                                            String d = (m['emp_display'] ??
+                                                        m['emp_name'] ??
+                                                        m['emp_code'] ??
+                                                        m['emp_key'])
+                                                    ?.toString() ??
+                                                '';
+                                            final mbr = RegExp(r'\[([^\]]+)\]')
+                                                .firstMatch(d);
+                                            if (mbr != null) {
+                                              displays.add(mbr.group(1)!);
+                                            } else if (d.trim().isNotEmpty)
+                                              displays.add(d.trim());
+                                          } catch (_) {}
+                                        }
+                                        empDisplay = displays.join(', ');
+                                      }
+                                    } catch (_) {}
+
+                                    final empClean = empDisplay
+                                        .replaceAll(RegExp(r'\s+'), ' ')
+                                        .trim();
+
+                                    return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          InkWell(
+                                            onTap: () async {
+                                              // reuse manual punch detail screen for generic view if needed
+                                              String? empName;
+                                              final emps = (a['employees']
+                                                      as List<dynamic>?) ??
+                                                  [];
+                                              if (emps.isNotEmpty) {
+                                                final displays = <String>[];
+                                                for (final e in emps) {
+                                                  try {
+                                                    final m = e is Map<String,
+                                                            dynamic>
+                                                        ? e
+                                                        : Map<String,
+                                                                dynamic>.from(
+                                                            e as Map);
+                                                    String d = (m['emp_display'] ??
+                                                                m['emp_name'] ??
+                                                                m['emp_code'] ??
+                                                                m['emp_key'])
+                                                            ?.toString() ??
+                                                        '';
+                                                    final mbr =
+                                                        RegExp(r'\[([^\]]+)\]')
+                                                            .firstMatch(d);
+                                                    if (mbr != null) {
+                                                      displays
+                                                          .add(mbr.group(1)!);
+                                                    } else if (d
+                                                        .trim()
+                                                        .isNotEmpty)
+                                                      displays.add(d.trim());
+                                                  } catch (_) {}
+                                                }
+                                                empName = displays.join(', ');
+                                              }
+                                              await Navigator.push<bool?>(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          ManualAttendanceDetailScreen(
+                                                              record: a,
+                                                              empName:
+                                                                  empName)));
+                                            },
+                                            child: Card(
+                                              elevation: 1,
+                                              shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8)),
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(12.0),
+                                                child: Row(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      CircleAvatar(
+                                                          radius: 20,
+                                                          backgroundColor:
+                                                              Colors.green,
+                                                          child: empClean
+                                                                  .isNotEmpty
+                                                              ? Text(
+                                                                  _initials(
+                                                                      empClean),
+                                                                  style: const TextStyle(
+                                                                      color: Colors
+                                                                          .white,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w600))
+                                                              : const Icon(
+                                                                  Icons
+                                                                      .history_toggle_off,
                                                                   color: Colors
-                                                                      .white,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600))
-                                                          : const Icon(
-                                                              Icons
-                                                                  .history_toggle_off,
-                                                              color: Colors
-                                                                  .white)),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                      child: Column(
+                                                                      .white)),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                          child: Column(
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                            const Text(
+                                                                'Manual Attendance',
+                                                                style: TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .w700,
+                                                                    fontSize:
+                                                                        14)),
+                                                            if (empClean
+                                                                .isNotEmpty)
+                                                              Padding(
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .only(
+                                                                          top:
+                                                                              4.0),
+                                                                  child: Text(
+                                                                      empClean,
+                                                                      style: const TextStyle(
+                                                                          fontSize:
+                                                                              13,
+                                                                          color:
+                                                                              Colors.black87))),
+                                                            if (inTime.isNotEmpty ||
+                                                                outTime
+                                                                    .isNotEmpty)
+                                                              Padding(
+                                                                  padding:
+                                                                      const EdgeInsets
+                                                                          .only(
+                                                                          top:
+                                                                              8.0),
+                                                                  child: Text(
+                                                                      '${inTime.isNotEmpty ? inTime : ''}${inTime.isNotEmpty && outTime.isNotEmpty ? ' → ' : ''}${outTime.isNotEmpty ? outTime : ''}',
+                                                                      style: const TextStyle(
+                                                                          color: Colors
+                                                                              .grey),
+                                                                      maxLines:
+                                                                          2,
+                                                                      overflow:
+                                                                          TextOverflow
+                                                                              .ellipsis))
+                                                          ])),
+                                                      const SizedBox(width: 12),
+                                                      Column(
                                                           crossAxisAlignment:
                                                               CrossAxisAlignment
-                                                                  .start,
+                                                                  .end,
                                                           children: [
-                                                        Text(
-                                                            'Manual Attendance',
-                                                            style: const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
-                                                                fontSize: 14)),
-                                                        if (empClean.isNotEmpty)
-                                                          Padding(
-                                                              padding:
-                                                                  const EdgeInsets
-                                                                      .only(
-                                                                      top: 4.0),
-                                                              child: Text(
-                                                                  empClean,
-                                                                  style: const TextStyle(
-                                                                      fontSize:
-                                                                          13,
-                                                                      color: Colors
-                                                                          .black87))),
-                                                        if (inTime.isNotEmpty ||
-                                                            outTime.isNotEmpty)
-                                                          Padding(
-                                                              padding:
-                                                                  const EdgeInsets
-                                                                      .only(
-                                                                      top: 8.0),
-                                                              child: Text(
-                                                                  '${inTime.isNotEmpty ? inTime : ''}${inTime.isNotEmpty && outTime.isNotEmpty ? ' → ' : ''}${outTime.isNotEmpty ? outTime : ''}',
-                                                                  style: const TextStyle(
-                                                                      color: Colors
-                                                                          .grey),
-                                                                  maxLines: 2,
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis))
-                                                      ])),
-                                                  const SizedBox(width: 12),
-                                                  Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .end,
-                                                      children: [
-                                                        Text(
-                                                            date.isNotEmpty
-                                                                ? date
-                                                                : '-',
-                                                            style: const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold)),
-                                                        Container(
-                                                            padding:
-                                                                const EdgeInsets
+                                                            Text(
+                                                                date.isNotEmpty
+                                                                    ? date
+                                                                    : '-',
+                                                                style: const TextStyle(
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold)),
+                                                            Container(
+                                                                padding: const EdgeInsets
                                                                     .symmetric(
                                                                     horizontal:
                                                                         8,
                                                                     vertical:
                                                                         6),
-                                                            decoration: BoxDecoration(
-                                                                color: Colors
-                                                                    .grey[200],
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            12)),
-                                                            child: Text(
-                                                                '${a['approval_status_name'] ?? a['approval_status_key'] ?? '-'}',
-                                                                style: const TextStyle(
+                                                                decoration: BoxDecoration(
                                                                     color: Colors
-                                                                        .black54,
-                                                                    fontSize:
-                                                                        12)))
-                                                      ]),
-                                                ]),
+                                                                            .grey[
+                                                                        200],
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                            12)),
+                                                                child: Text(
+                                                                    '${a['approval_status_name'] ?? a['approval_status_key'] ?? '-'}',
+                                                                    style: const TextStyle(
+                                                                        color: Colors
+                                                                            .black54,
+                                                                        fontSize:
+                                                                            12)))
+                                                          ]),
+                                                    ]),
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    ]);
-                              },
-                            ),
+                                        ]);
+                                  },
+                                ),
             ),
           ),
         ]),

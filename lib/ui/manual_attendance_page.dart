@@ -269,10 +269,11 @@ class _ManualAttendancePageState extends State<ManualAttendancePage> {
                                       : code,
                                   style: const TextStyle(fontSize: 14)),
                               onTap: () => setState2(() {
-                                if (selected)
+                                if (selected) {
                                   temp.remove(key);
-                                else
+                                } else {
                                   temp.add(key);
+                                }
                               }),
                             ),
                           );

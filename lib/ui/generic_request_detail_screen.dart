@@ -146,22 +146,25 @@ class GenericRequestDetailScreen extends StatelessWidget {
     if (val is Map) {
       final name =
           val['approval_status_name'] ?? val['approval_status_name'.toString()];
-      if (name != null && name.toString().trim().isNotEmpty)
+      if (name != null && name.toString().trim().isNotEmpty) {
         return name.toString();
+      }
       final key =
           val['approval_status_key'] ?? val['approval_status_key'.toString()];
       if (key != null) {
         final k = int.tryParse(key.toString());
-        if (k != null && _approvalStatusNames.containsKey(k))
+        if (k != null && _approvalStatusNames.containsKey(k)) {
           return _approvalStatusNames[k]!;
+        }
         return key.toString();
       }
     }
     // If val is a raw key (string/number)
     final s = val.toString();
     final k = int.tryParse(s);
-    if (k != null && _approvalStatusNames.containsKey(k))
+    if (k != null && _approvalStatusNames.containsKey(k)) {
       return _approvalStatusNames[k]!;
+    }
     return s;
   }
 
@@ -179,10 +182,12 @@ class GenericRequestDetailScreen extends StatelessWidget {
         // Try to extract readable names from list of maps
         final names = v
             .map((e) {
-              if (e is Map && e.containsKey('emp_name'))
+              if (e is Map && e.containsKey('emp_name')) {
                 return e['emp_name'].toString();
-              if (e is Map && e.containsKey('name'))
+              }
+              if (e is Map && e.containsKey('name')) {
                 return e['name'].toString();
+              }
               return e.toString();
             })
             .where((s) => s.isNotEmpty)
@@ -223,8 +228,9 @@ class GenericRequestDetailScreen extends StatelessWidget {
           keyVal['name'] ??
           keyVal['employee_name'] ??
           keyVal['full_name'];
-      if (name != null && name.toString().trim().isNotEmpty)
+      if (name != null && name.toString().trim().isNotEmpty) {
         return name.toString();
+      }
     }
 
     final keyStr = keyVal.toString().trim();
@@ -232,8 +238,9 @@ class GenericRequestDetailScreen extends StatelessWidget {
     if ((record['emp_key'] ?? record['employee_key']) != null) {
       final rKey =
           (record['emp_key'] ?? record['employee_key']).toString().trim();
-      if (rKey == keyStr && record['emp_name'] != null)
+      if (rKey == keyStr && record['emp_name'] != null) {
         return record['emp_name'].toString();
+      }
     }
 
     // Look inside an 'employees' list in the record for a matching key/code/id
@@ -257,8 +264,9 @@ class GenericRequestDetailScreen extends StatelessWidget {
                   e['name'] ??
                   e['employee_name'] ??
                   e['full_name'];
-              if (name != null && name.toString().trim().isNotEmpty)
+              if (name != null && name.toString().trim().isNotEmpty) {
                 return name.toString();
+              }
             }
           }
         }

@@ -7,8 +7,8 @@ import 'package:flutter_svg/svg.dart' as svg;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final svgPath = 'assets/Images/IconAndLogo/logo-normal.svg';
-  final pngPath = 'assets/Images/IconAndLogo/logo-normal.png';
+  const svgPath = 'assets/Images/IconAndLogo/logo-normal.svg';
+  const pngPath = 'assets/Images/IconAndLogo/logo-normal.png';
 
   if (!File(svgPath).existsSync()) {
     exit(1);

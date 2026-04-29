@@ -18,8 +18,9 @@ class LeaveBalanceApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/leave_balance';
 
       // Try form-encoded POST

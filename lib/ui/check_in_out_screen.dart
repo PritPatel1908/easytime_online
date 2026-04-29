@@ -255,7 +255,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
           final raw = res['raw_response'];
           final extracted = _extractPunches(raw);
           if ((extracted['in']?.isNotEmpty ?? false) ||
-              (extracted['out']?.isNotEmpty ?? false)) return extracted;
+              (extracted['out']?.isNotEmpty ?? false)) {
+            return extracted;
+          }
         }
 
         // Common alternative keys
@@ -288,14 +290,18 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
           if (val is Map || val is List) {
             final extracted = _extractPunches(val);
             if ((extracted['in']?.isNotEmpty ?? false) ||
-                (extracted['out']?.isNotEmpty ?? false)) return extracted;
+                (extracted['out']?.isNotEmpty ?? false)) {
+              return extracted;
+            }
           }
         }
       } else if (res is List) {
         for (var item in res) {
           final extracted = _extractPunches(item);
           if ((extracted['in']?.isNotEmpty ?? false) ||
-              (extracted['out']?.isNotEmpty ?? false)) return extracted;
+              (extracted['out']?.isNotEmpty ?? false)) {
+            return extracted;
+          }
         }
       }
     } catch (e) {}
@@ -314,8 +320,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
 
       final baseUrl = await TodayPunchesApi.getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = Uri.parse('$cleanUrl/api/in_out_punch');
 
       // Prepare photo (encrypt then base64)
@@ -353,9 +360,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
       if (false) {
         bodyMap.forEach((key, value) {
           try {
-            if (key == 'photo' &&
-                value != null &&
-                value.toString().length > 100) {
+            if (key == 'photo' && value.toString().length > 100) {
               final v = value.toString();
             } else {}
           } catch (e) {}
@@ -431,7 +436,7 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
         final request = http.MultipartRequest('POST', apiUrl);
         // add fields
         bodyMap.forEach((k, v) {
-          if (v != null) request.fields[k] = v.toString();
+          request.fields[k] = v.toString();
         });
 
         // if we have a photo file, attach raw bytes (streamed)
@@ -488,7 +493,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
       for (var entry in m.entries) {
         if (entry.key is String &&
             entry.key.toString().toLowerCase() == k.toLowerCase() &&
-            entry.value != null) return entry.value.toString();
+            entry.value != null) {
+          return entry.value.toString();
+        }
       }
     }
     return null;

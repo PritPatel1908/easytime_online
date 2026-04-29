@@ -317,7 +317,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         ),
         actions: [
           Padding(
-            padding: EdgeInsets.only(right: 8.0),
+            padding: const EdgeInsets.only(right: 8.0),
             child: IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white),
               onPressed: _refreshAttendanceData,
@@ -349,7 +349,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       ),
       bottomNavigationBar: NavigationBarTheme(
         data: const NavigationBarThemeData(
-          labelTextStyle: MaterialStatePropertyAll(TextStyle(fontSize: 12)),
+          labelTextStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
         ),
         child: NavigationBar(
           selectedIndex: 1,
@@ -949,7 +949,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         ),
         label: Text(
           '$code • $cnt',
-          style: TextStyle(
+          style: const TextStyle(
               color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 12),
         ),
       );

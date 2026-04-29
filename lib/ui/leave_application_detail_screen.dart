@@ -29,14 +29,16 @@ class LeaveApplicationDetailScreen extends StatelessWidget {
     if (rec == null) return '-';
     final name =
         rec['approval_status_name'] ?? rec['approval_status_name'.toString()];
-    if (name != null && name.toString().trim().isNotEmpty)
+    if (name != null && name.toString().trim().isNotEmpty) {
       return name.toString();
+    }
     final key =
         rec['approval_status_key'] ?? rec['approval_status_key'.toString()];
     if (key == null) return '-';
     final k = int.tryParse(key.toString());
-    if (k != null && _approvalStatusNames.containsKey(k))
+    if (k != null && _approvalStatusNames.containsKey(k)) {
       return _approvalStatusNames[k]!;
+    }
     return key.toString();
   }
 

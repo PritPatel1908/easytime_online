@@ -23,6 +23,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
   String _error = '';
   List<Map<String, dynamic>> _applications = [];
   Map<String, Map<String, dynamic>> _empMap = {};
+  bool _hasReadPermission = true;
+  bool _hasCreatePermission = true;
 
   static const Map<int, String> _approvalStatusNames = {
     1: 'Applied',
@@ -58,7 +60,51 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadApplications();
+    _initRightsAndLoad();
+  }
+
+  Future<void> _initRightsAndLoad() async {
+    await _loadUserRights();
+    if (_hasReadPermission) {
+      await _loadApplications();
+    } else {
+      setState(() {
+        _isLoading = false;
+        _applications = [];
+      });
+    }
+  }
+
+  Future<void> _loadUserRights() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('user_rights_json') ??
+          prefs.getString('user_rights') ??
+          '';
+      if (s.isNotEmpty) {
+        final Map<String, dynamic> rights = json.decode(s);
+        final la = rights['leave_application'];
+        if (la is Map) {
+          _hasCreatePermission = _coerceToBool(la['create']);
+          _hasReadPermission = _coerceToBool(la['read']);
+        }
+      }
+    } catch (e) {
+      // default permissive if can't read rights
+      _hasCreatePermission = true;
+      _hasReadPermission = true;
+    }
+  }
+
+  bool _coerceToBool(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is int) return v == 1;
+    if (v is String) {
+      final low = v.toLowerCase();
+      return low == '1' || low == 'true' || low == 'yes';
+    }
+    return false;
   }
 
   @override
@@ -224,17 +270,27 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
             children: [
               const SizedBox(height: 6),
               ElevatedButton.icon(
-                onPressed: () async {
-                  final res = await Navigator.push<bool?>(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            NewLeaveApplicationScreen(empKey: widget.empKey)),
-                  );
-                  if (res == true) {
-                    _loadApplications();
-                  }
-                },
+                onPressed: _hasCreatePermission
+                    ? () async {
+                        final res = await Navigator.push<bool?>(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => NewLeaveApplicationScreen(
+                                  empKey: widget.empKey)),
+                        );
+                        if (res == true) {
+                          _loadApplications();
+                        }
+                      }
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Permission denied: cannot create leave application'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      },
                 icon: const Icon(Icons.add),
                 label: const Text('New Leave Application'),
                 style: ElevatedButton.styleFrom(
@@ -295,120 +351,143 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
                               physics: const AlwaysScrollableScrollPhysics(),
                               children: [Center(child: Text('Error: $_error'))],
                             )
-                          : _applications.isEmpty
+                          : !_hasReadPermission
                               ? ListView(
                                   physics:
                                       const AlwaysScrollableScrollPhysics(),
                                   children: const [
-                                    Center(child: Text('No applications'))
+                                    Center(
+                                        child: Text(
+                                            'You do not have permission to view leave applications'))
                                   ],
                                 )
-                              : ListView.separated(
-                                  padding: const EdgeInsets.all(12),
-                                  physics:
-                                      const AlwaysScrollableScrollPhysics(),
-                                  itemCount: _applications.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 8),
-                                  itemBuilder: (context, index) {
-                                    final a = _applications[index];
-                                    final empKey =
-                                        (a['emp_key'] ?? '').toString();
-                                    final emp = _empMap[empKey];
-                                    final empName = emp != null
-                                        ? (emp['emp_name'] ?? '')
-                                        : '';
-                                    return InkWell(
-                                      onTap: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                                LeaveApplicationDetailScreen(
-                                                    application: a,
-                                                    empName:
-                                                        empName?.toString()),
+                              : _applications.isEmpty
+                                  ? ListView(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      children: const [
+                                        Center(child: Text('No applications'))
+                                      ],
+                                    )
+                                  : ListView.separated(
+                                      padding: const EdgeInsets.all(12),
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      itemCount: _applications.length,
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 8),
+                                      itemBuilder: (context, index) {
+                                        final a = _applications[index];
+                                        final empKey =
+                                            (a['emp_key'] ?? '').toString();
+                                        final emp = _empMap[empKey];
+                                        final empName = emp != null
+                                            ? (emp['emp_name'] ?? '')
+                                            : '';
+                                        return InkWell(
+                                          onTap: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) =>
+                                                    LeaveApplicationDetailScreen(
+                                                        application: a,
+                                                        empName: empName
+                                                            ?.toString()),
+                                              ),
+                                            );
+                                          },
+                                          child: Card(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(12.0),
+                                              child: Row(
+                                                children: [
+                                                  const CircleAvatar(
+                                                      radius: 18,
+                                                      backgroundColor:
+                                                          Colors.blueAccent,
+                                                      child: Icon(
+                                                          Icons.event_available,
+                                                          color: Colors.white,
+                                                          size: 18)),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Text(
+                                                            '${a['leave_type_code'] ?? '-'} • ${a['debit_leave_days'] ?? '-'} day(s)',
+                                                            style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600)),
+                                                        const SizedBox(
+                                                            height: 6),
+                                                        Text(
+                                                          a['reason'] ?? '-',
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .grey),
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                        if (empName
+                                                            .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                              height: 6),
+                                                          Text(empName,
+                                                              style: const TextStyle(
+                                                                  color: Colors
+                                                                      .black54,
+                                                                  fontSize:
+                                                                      12)),
+                                                        ]
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  SizedBox(
+                                                    width: 110,
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .end,
+                                                      children: [
+                                                        Text(
+                                                          '${a['from_date'] ?? '-'} → ${a['to_date'] ?? '-'}',
+                                                          style: const TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold),
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                        const SizedBox(
+                                                            height: 6),
+                                                        Text(
+                                                          'Status: ${_getApprovalStatusName(a)}',
+                                                          style:
+                                                              const TextStyle(
+                                                                  color: Colors
+                                                                      .grey,
+                                                                  fontSize: 12),
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                           ),
                                         );
                                       },
-                                      child: Card(
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12.0),
-                                          child: Row(
-                                            children: [
-                                              const CircleAvatar(
-                                                  radius: 18,
-                                                  backgroundColor:
-                                                      Colors.blueAccent,
-                                                  child: Icon(
-                                                      Icons.event_available,
-                                                      color: Colors.white,
-                                                      size: 18)),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                        '${a['leave_type_code'] ?? '-'} • ${a['debit_leave_days'] ?? '-'} day(s)',
-                                                        style: const TextStyle(
-                                                            fontWeight:
-                                                                FontWeight
-                                                                    .w600)),
-                                                    const SizedBox(height: 6),
-                                                    Text(
-                                                      a['reason'] ?? '-',
-                                                      style: const TextStyle(
-                                                          color: Colors.grey),
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    if (empName.isNotEmpty) ...[
-                                                      const SizedBox(height: 6),
-                                                      Text(empName,
-                                                          style: const TextStyle(
-                                                              color: Colors
-                                                                  .black54,
-                                                              fontSize: 12)),
-                                                    ]
-                                                  ],
-                                                ),
-                                              ),
-                                              SizedBox(
-                                                width: 110,
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.end,
-                                                  children: [
-                                                    Text(
-                                                      '${a['from_date'] ?? '-'} → ${a['to_date'] ?? '-'}',
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.bold),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    const SizedBox(height: 6),
-                                                    Text(
-                                                      'Status: ${_getApprovalStatusName(a)}',
-                                                      style: const TextStyle(
-                                                          color: Colors.grey,
-                                                          fontSize: 12),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
+                                    ),
                 ),
               )
             ],

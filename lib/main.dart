@@ -596,6 +596,62 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         } catch (_) {}
 
+        // Save user_rights from the login response to prefs and include
+        // Save user_rights from the login response to prefs and include
+        // in userData so screens can consult permissions. Be tolerant of
+        // different response shapes by searching recursively.
+        try {
+          final prefs = await SharedPreferences.getInstance();
+
+          // Search helpers
+          dynamic findKeyRecursively(dynamic obj, String needle,
+              [int depth = 0]) {
+            if (depth > 8) return null;
+            if (obj == null) return null;
+            if (obj is Map) {
+              for (final k in obj.keys) {
+                if (k is String && k.toLowerCase() == needle.toLowerCase()) {
+                  return obj[k];
+                }
+              }
+              for (final entry in obj.entries) {
+                final v = entry.value;
+                if (v is Map || v is List) {
+                  final res = findKeyRecursively(v, needle, depth + 1);
+                  if (res != null) return res;
+                }
+              }
+            } else if (obj is List) {
+              for (final item in obj) {
+                final res = findKeyRecursively(item, needle, depth + 1);
+                if (res != null) return res;
+              }
+            }
+            return null;
+          }
+
+          dynamic ur = findKeyRecursively(result, 'user_rights');
+          // Also try inside response_data explicitly
+          if (ur == null && result.containsKey('response_data')) {
+            ur = findKeyRecursively(result['response_data'], 'user_rights');
+          }
+          // As a fallback, check userData map we already extracted
+          if (ur == null) {
+            ur = findKeyRecursively(userData, 'user_rights');
+          }
+
+          if (ur != null) {
+            // coerce JSON string to Map if necessary
+            if (ur is String) {
+              try {
+                ur = json.decode(ur);
+              } catch (_) {}
+            }
+            userData['user_rights'] = ur;
+            await prefs.setString('user_rights_json', jsonEncode(ur));
+          }
+        } catch (_) {}
+
         // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(
             userData['emp_name'] ?? username, userData, empKey ?? '');

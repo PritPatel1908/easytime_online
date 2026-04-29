@@ -70,10 +70,10 @@ class _SplashScreenState extends State<SplashScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 // Logo Animation (SVG-based)
-                SizedBox(
+                const SizedBox(
                   width: 150,
                   height: 150,
-                  child: const AnimatedIndianInfotechLogo(size: 150),
+                  child: AnimatedIndianInfotechLogo(size: 150),
                 ),
                 const SizedBox(height: 20),
                 // Text Animation
@@ -278,7 +278,7 @@ class _SvgPartsPainter extends CustomPainter {
     final double scale = size.width / viewBox;
 
     // Use a shader rect in SVG coordinate space
-    final Rect shaderRect = Rect.fromLTWH(0, 0, viewBox, viewBox);
+    const Rect shaderRect = Rect.fromLTWH(0, 0, viewBox, viewBox);
 
     canvas.save();
     // scale canvas so Paths (which are in 0..40 space) fill the widget

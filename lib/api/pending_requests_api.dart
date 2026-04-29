@@ -180,18 +180,18 @@ class PendingRequestsApi {
             if (k == 'selected_ids') return; // handle below
             if (v == null) return;
             sb.write(
-                '&requests[${i}][${Uri.encodeQueryComponent(k)}]=${Uri.encodeQueryComponent(v.toString())}');
+                '&requests[$i][${Uri.encodeQueryComponent(k)}]=${Uri.encodeQueryComponent(v.toString())}');
           });
           // selected_ids may be List or single value
           final sel = req['selected_ids'];
           if (sel is List) {
             for (final id in sel) {
               sb.write(
-                  '&requests[${i}][selected_ids][]=${Uri.encodeQueryComponent(id.toString())}');
+                  '&requests[$i][selected_ids][]=${Uri.encodeQueryComponent(id.toString())}');
             }
           } else if (sel != null) {
             sb.write(
-                '&requests[${i}][selected_ids][]=${Uri.encodeQueryComponent(sel.toString())}');
+                '&requests[$i][selected_ids][]=${Uri.encodeQueryComponent(sel.toString())}');
           }
         }
 

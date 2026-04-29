@@ -50,8 +50,7 @@ class ManualAttendanceService {
           .post(
             url,
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: bodyMap
-                .map((k, v) => MapEntry(k, v == null ? '' : v.toString())),
+            body: bodyMap.map((k, v) => MapEntry(k, v.toString())),
           )
           .timeout(const Duration(seconds: 15));
       if (resp.statusCode == 200) return true;

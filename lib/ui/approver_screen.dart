@@ -216,13 +216,16 @@ class _ApproverScreenState extends State<ApproverScreen>
         final data = res['data'];
         if (data is Map && data['processed'] is List) {
           for (final p in data['processed']) {
-            if (p is Map && p['id'] != null)
+            if (p is Map && p['id'] != null) {
               processedIds.add(p['id'].toString());
+            }
           }
         }
       } catch (_) {}
       if (processedIds.isEmpty) {
-        for (final v in groups.values) processedIds.addAll(v);
+        for (final v in groups.values) {
+          processedIds.addAll(v);
+        }
       }
 
       setState(() {
@@ -350,13 +353,16 @@ class _ApproverScreenState extends State<ApproverScreen>
         final data = res['data'];
         if (data is Map && data['processed'] is List) {
           for (final p in data['processed']) {
-            if (p is Map && p['id'] != null)
+            if (p is Map && p['id'] != null) {
               processedIds.add(p['id'].toString());
+            }
           }
         }
       } catch (_) {}
       if (processedIds.isEmpty) {
-        for (final v in groups.values) processedIds.addAll(v);
+        for (final v in groups.values) {
+          processedIds.addAll(v);
+        }
       }
 
       setState(() {

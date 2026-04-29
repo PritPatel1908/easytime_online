@@ -59,9 +59,9 @@ class ManualAttendanceDetailScreen extends StatelessWidget {
                     ?.toString() ??
                 '';
             final mbr = RegExp(r'\[([^\]]+)\]').firstMatch(d);
-            if (mbr != null)
+            if (mbr != null) {
               displays.add(mbr.group(1)!);
-            else if (d.trim().isNotEmpty) displays.add(d.trim());
+            } else if (d.trim().isNotEmpty) displays.add(d.trim());
           } catch (_) {}
         }
         empDisplay = displays.join(', ');
