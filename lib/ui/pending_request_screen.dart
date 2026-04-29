@@ -22,6 +22,8 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
   List<Map<String, dynamic>> _requests = [];
   String _selectedType = 'all';
   bool _canApproveAllEntities = false;
+  // Map of rights parsed from stored user_rights JSON. Key: right key, Value: approve boolean
+  Map<String, bool> _approveRights = {};
 
   static const Map<String, String> _typeOptions = {
     'all': 'All',
@@ -69,25 +71,79 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
           '';
       if (s.isNotEmpty) {
         final rights = json.decode(s) as Map<String, dynamic>;
-        final la =
-            _coerceToBool((rights['leave_application'] ?? {})['approve']);
-        final mp = _coerceToBool((rights['manual_punch'] ?? {})['approve']);
-        final ma =
-            _coerceToBool((rights['manual_attendance'] ?? {})['approve']) ||
-                _coerceToBool((rights['manual_att'] ?? {})['approve']);
+        final Map<String, bool> parsed = {};
+        for (final k in rights.keys) {
+          try {
+            final v = rights[k];
+            final appr = v is Map ? v['approve'] : null;
+            parsed[k.toString()] = _coerceToBool(appr);
+          } catch (_) {
+            parsed[k.toString()] = false;
+          }
+        }
         setState(() {
-          _canApproveAllEntities = la && mp && ma;
+          _approveRights = parsed;
+          // show some approve actions if user has at least one approve right
+          _canApproveAllEntities = _approveRights.values.any((v) => v == true);
         });
       } else {
         setState(() {
+          _approveRights = {};
           _canApproveAllEntities = false;
         });
       }
     } catch (e) {
       setState(() {
+        _approveRights = {};
         _canApproveAllEntities = false;
       });
     }
+  }
+
+  // Returns true when the current user has approve permission for the given entity/type.
+  bool _hasApproveForEntity(String entity) {
+    if (entity.isEmpty) return false;
+    if (_approveRights.isEmpty) return _canApproveAllEntities;
+    if (_approveRights.containsKey(entity)) return _approveRights[entity]!;
+    // common alias: miss_punch -> manual_punch
+    if (entity == 'miss_punch' && _approveRights.containsKey('manual_punch')) {
+      return _approveRights['manual_punch']!;
+    }
+    // manual attendance aliases
+    if ((entity == 'manual_att' || entity == 'manual_attendance') &&
+        (_approveRights.containsKey('manual_attendance') ||
+            _approveRights.containsKey('manual_att'))) {
+      return (_approveRights['manual_attendance'] == true) ||
+          (_approveRights['manual_att'] == true);
+    }
+    String clean(String s) => s.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final entClean = clean(entity.toLowerCase());
+    for (final k in _approveRights.keys) {
+      if (clean(k.toLowerCase()) == entClean) return _approveRights[k]!;
+    }
+    return false;
+  }
+
+  // Returns true if any of the currently selected items is approvable by the user.
+  bool _selectedHasApproveRight() {
+    if (_selectedItems.isEmpty) return false;
+    for (final id in _selectedItems) {
+      for (int i = 0; i < _filteredRequests.length; i++) {
+        final r = _filteredRequests[i];
+        final k = (r['id'] ??
+                r['entity_endorsement_flow_details_id'] ??
+                r['entity_id'] ??
+                r['request_id'] ??
+                i)
+            .toString();
+        if (k == id) {
+          final entityName =
+              (r['entity_name'] ?? r['type'] ?? r['entity'] ?? '').toString();
+          if (_hasApproveForEntity(entityName)) return true;
+        }
+      }
+    }
+    return false;
   }
 
   bool _coerceToBool(dynamic v) {
@@ -788,7 +844,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
           ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (_canApproveAllEntities) ...[
+                if (_approveRights.isEmpty || _selectedHasApproveRight()) ...[
                   FloatingActionButton(
                     heroTag: 'bulk_approve',
                     onPressed: _bulkApproveSelected,
@@ -1256,8 +1312,10 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                                         },
                                                 ),
                                               ),
-                                              // approve (only show when all three approve rights are true)
-                                              if (_canApproveAllEntities) ...[
+                                              // approve (show when user has approve right for this entity)
+                                              if (_approveRights.isEmpty ||
+                                                  _hasApproveForEntity(
+                                                      entity)) ...[
                                                 const SizedBox(width: 8),
                                                 Container(
                                                   decoration: BoxDecoration(
