@@ -6,18 +6,21 @@
         </trust-anchors>
     </base-config>
 
-    <!-- Allow cleartext only for the specific domain (useful for controlled HTTP fallback) -->
+    <!-- Allow cleartext and trust both system + user-installed CAs for the API domain.
+         User-installed CAs cover enterprise/corporate devices that push custom root CAs. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">att.easytimeonline.in</domain>
-    </domain-config>
-
-    <!-- Optional: pin or add a bundled CA for legacy devices
-    <domain-config>
-        <domain>att.easytimeonline.in</domain>
         <trust-anchors>
-            <certificates src="@raw/your_ca" />
             <certificates src="system" />
+            <certificates src="user" />
         </trust-anchors>
     </domain-config>
-    -->
+
+    <!-- Debug builds: allow all cleartext and trust user certs globally -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>

@@ -208,6 +208,11 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
       setState(() {
         _isCameraInitialized = true;
       });
+      // Ensure a post-frame rebuild so CameraPreview's texture attaches reliably
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {});
+      });
     } catch (e) {
       // leave fallback to image_picker
       if (mounted) {
@@ -626,17 +631,18 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: _photoFile == null
-                                      ? (_isCameraInitialized &&
-                                              _cameraController != null
+                                        ? (_cameraController != null &&
+                                            _cameraController!.value
+                                              .isInitialized
                                           ? SizedBox(
-                                              width: 150,
-                                              height: 150,
-                                              child: CameraPreview(
-                                                  _cameraController!),
-                                            )
+                                            width: 150,
+                                            height: 150,
+                                            child: CameraPreview(
+                                              _cameraController!),
+                                          )
                                           : Icon(Icons.camera_alt,
-                                              size: 56,
-                                              color: Colors.grey[700]))
+                                            size: 56,
+                                            color: Colors.grey[700]))
                                       : Image.file(_photoFile!,
                                           fit: BoxFit.cover),
                                 ),
