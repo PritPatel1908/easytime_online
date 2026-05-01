@@ -36,6 +36,8 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
   File? _photoFile;
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
+  Future<void>? _cameraInitFuture;
+  Key? _cameraPreviewKey;
   bool _isCameraInitialized = false;
   // Guards to avoid requesting the same permission multiple times
   bool _locationRequested = false;
@@ -73,9 +75,10 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
     });
 
     // Fetch default location and fill into location field
-    // Fetch default location first, then initialize camera.
-    // This sequences permission dialogs to avoid overlapping prompts
-    // and prevents duplicate permission requests on fresh installs.
+    // Start camera preview immediately so user sees live preview
+    // as soon as the page opens. Location will still be fetched
+    // afterwards to populate the location field.
+    _initCamera();
     _prepareLocationAndCamera();
   }
 
@@ -85,7 +88,12 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
     await Future.delayed(const Duration(milliseconds: 350));
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initCamera();
+      // Only initialize camera here if it hasn't been started yet.
+      if (!_isCameraInitialized &&
+          !_cameraInitStarted &&
+          _cameraController == null) {
+        _initCamera();
+      }
     });
   }
 
@@ -189,8 +197,11 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
     try {
       // small delay to ensure UI is ready
       await Future.delayed(const Duration(milliseconds: 150));
+      debugPrint('initCamera: starting');
+      // (Removed explicit permission_handler usage to avoid plugin build issues.)
       // get available cameras
       _cameras = await availableCameras();
+      debugPrint('initCamera: found ${_cameras?.length ?? 0} cameras');
       // prefer front camera
       CameraDescription? front;
       for (var cam in _cameras!) {
@@ -200,20 +211,33 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
         }
       }
       final camToUse = front ?? (_cameras!.isNotEmpty ? _cameras!.first : null);
+      debugPrint('initCamera: selected camera ${camToUse?.name ?? 'none'}');
       if (camToUse == null) return;
       _cameraController = CameraController(camToUse, ResolutionPreset.medium,
           enableAudio: false);
-      await _cameraController!.initialize();
+      debugPrint('initCamera: controller created');
+      // start initialize and expose future so UI can build a FutureBuilder
+      _cameraInitFuture = _cameraController!.initialize();
+      if (mounted)
+        setState(() {}); // make controller and future available to builder
+      debugPrint('initCamera: initializing controller');
+      await _cameraInitFuture;
+      debugPrint('initCamera: controller initialized');
       if (!mounted) return;
       setState(() {
         _isCameraInitialized = true;
+        _cameraPreviewKey = UniqueKey();
       });
+      // Allow a tiny stabilization delay so the texture can be created
+      await Future.delayed(const Duration(milliseconds: 60));
       // Ensure a post-frame rebuild so CameraPreview's texture attaches reliably
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {});
       });
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('initCamera: error - $e');
+      debugPrint(st.toString());
       // leave fallback to image_picker
       if (mounted) {
         setState(() {
@@ -631,18 +655,31 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
                                   child: _photoFile == null
-                                        ? (_cameraController != null &&
-                                            _cameraController!.value
-                                              .isInitialized
-                                          ? SizedBox(
-                                            width: 150,
-                                            height: 150,
-                                            child: CameraPreview(
-                                              _cameraController!),
-                                          )
+                                      ? (_cameraController != null
+                                          ? FutureBuilder<void>(
+                                              future: _cameraInitFuture,
+                                              builder: (ctx, snap) {
+                                                if (snap.connectionState ==
+                                                        ConnectionState.done &&
+                                                    _cameraController!
+                                                        .value.isInitialized) {
+                                                  return SizedBox(
+                                                    width: 150,
+                                                    height: 150,
+                                                    child: CameraPreview(
+                                                      _cameraController!,
+                                                      key: _cameraPreviewKey,
+                                                    ),
+                                                  );
+                                                }
+                                                return Icon(Icons.camera_alt,
+                                                    size: 56,
+                                                    color: Colors.grey[700]);
+                                              },
+                                            )
                                           : Icon(Icons.camera_alt,
-                                            size: 56,
-                                            color: Colors.grey[700]))
+                                              size: 56,
+                                              color: Colors.grey[700]))
                                       : Image.file(_photoFile!,
                                           fit: BoxFit.cover),
                                 ),
