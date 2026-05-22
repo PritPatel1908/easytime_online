@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' as foundation;
 
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
@@ -10,6 +11,7 @@ import 'package:easytime_online/ui/team_screen.dart';
 import 'package:easytime_online/ui/my_leave_balance_screen.dart';
 import 'package:easytime_online/ui/leave_application_screen.dart';
 import 'package:easytime_online/ui/manual_punch_list_screen.dart';
+import 'package:easytime_online/ui/pending_mobile_punches_screen.dart';
 import 'package:easytime_online/ui/pending_request_screen.dart';
 import 'package:easytime_online/ui/check_in_out_screen.dart';
 import 'package:easytime_online/ui/manual_attendance_list_screen.dart';
@@ -54,6 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   late TabController _tabController;
   int _currentIndex = 0;
   bool _allowMobilePunch = false;
+  bool _isMobilePunchRequiresApprover = false;
 
   // Add state variables for work hours
   String _monthlyWorkHours = "0.0";
@@ -125,6 +128,30 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     // Initialize permission flags from login response
     _allowMobilePunch = _extractAllowMobilePunch(widget.userData);
+
+    // Initialize approver flag from login response (case-insensitive search)
+    try {
+      final rawApprover =
+          _findKeyDeep(widget.userData, 'is_mobile_punch_requires_approver');
+      _isMobilePunchRequiresApprover = _coerceToBool(rawApprover);
+    } catch (_) {
+      _isMobilePunchRequiresApprover = false;
+    }
+
+    // Debug: print the approver flag (if any) from the login response
+    try {
+      final approver =
+          _findKeyDeep(widget.userData, 'is_mobile_punch_requires_approver');
+      final msg =
+          'DASHBOARD-DEBUG is_mobile_punch_requires_approver: $approver';
+      print(msg);
+      try {
+        // also write to stderr when available
+        // ignore: avoid_slow_async_io
+        // (we don't import dart:io here; print is sufficient for logs)
+      } catch (_) {}
+      foundation.debugPrint(msg);
+    } catch (_) {}
 
     // Load saved stat order
     _loadStatOrder();
@@ -605,6 +632,39 @@ class _DashboardScreenState extends State<DashboardScreen>
     return null;
   }
 
+  // Generic deep search for any key name (case-insensitive)
+  dynamic _findKeyDeep(dynamic obj, String needle,
+      [int depth = 0, int maxDepth = 6]) {
+    if (depth > maxDepth) return null;
+    if (obj == null) return null;
+
+    if (obj is Map) {
+      // direct key
+      if (obj.containsKey(needle)) return obj[needle];
+
+      for (final entry in obj.entries) {
+        final k = entry.key;
+        final v = entry.value;
+        if (k is String && k.toLowerCase() == needle.toLowerCase()) {
+          return v;
+        }
+        if (v is Map || v is List) {
+          final res = _findKeyDeep(v, needle, depth + 1, maxDepth);
+          if (res != null) return res;
+        }
+      }
+    } else if (obj is List) {
+      for (final item in obj) {
+        if (item is Map || item is List) {
+          final res = _findKeyDeep(item, needle, depth + 1, maxDepth);
+          if (res != null) return res;
+        }
+      }
+    }
+
+    return null;
+  }
+
   // Format time string to HH:MM (strip seconds). If invalid, return original or '-'.
   String _formatToHHMM(String? timeStr) {
     if (timeStr == null || timeStr.trim().isEmpty) return '-';
@@ -765,9 +825,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.didUpdateWidget(oldWidget);
     // Re-evaluate allow_mobile_punch when userData updates
     final updated = _extractAllowMobilePunch(widget.userData);
-    if (updated != _allowMobilePunch) {
+    bool approverUpdated = false;
+    try {
+      final rawApprover =
+          _findKeyDeep(widget.userData, 'is_mobile_punch_requires_approver');
+      approverUpdated = _coerceToBool(rawApprover);
+    } catch (_) {
+      approverUpdated = false;
+    }
+
+    if (updated != _allowMobilePunch ||
+        approverUpdated != _isMobilePunchRequiresApprover) {
       setState(() {
         _allowMobilePunch = updated;
+        _isMobilePunchRequiresApprover = approverUpdated;
       });
     }
   }
@@ -937,9 +1008,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
+                  LayoutBuilder(builder: (context, constraints) {
+                    // Build actions list so we can size each item to show up to 4 by default
+                    final actions = <Widget>[];
+
+                    actions.add(
                       _buildQuickActionButton(
                         icon: Icons.login,
                         label: 'Check In',
@@ -978,7 +1051,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                           );
 
-                          // If the check-in screen popped with emp_key, refresh today's punches
                           if (result is Map && result['emp_key'] != null) {
                             final res =
                                 await _todayPunchesApi.fetchTodayPunches(
@@ -993,6 +1065,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         },
                         enabled: _allowMobilePunch,
                       ),
+                    );
+
+                    actions.add(
                       _buildQuickActionButton(
                         icon: Icons.logout,
                         label: 'Check Out',
@@ -1044,6 +1119,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         },
                         enabled: _allowMobilePunch,
                       ),
+                    );
+
+                    actions.add(
                       _buildQuickActionButton(
                         icon: Icons.history,
                         label: 'My Punches',
@@ -1070,6 +1148,41 @@ class _DashboardScreenState extends State<DashboardScreen>
                           }
                         },
                       ),
+                    );
+
+                    // Show Manage Mobile Punch only when approver flag is true
+                    if (_isMobilePunchRequiresApprover) {
+                      actions.add(
+                        _buildQuickActionButton(
+                          icon: Icons.phone_android,
+                          label: 'Manage Mobile Punch',
+                          color: Colors.purple,
+                          scale: scaleFactor,
+                          onTap: () {
+                            String? empKey = _findEmployeeKey();
+                            if (empKey != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PendingMobilePunchesScreen(
+                                          approverKey: empKey),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Employee key not found.'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      );
+                    }
+
+                    actions.add(
                       _buildQuickActionButton(
                         icon: Icons.access_time,
                         label: 'Time Card',
@@ -1097,8 +1210,32 @@ class _DashboardScreenState extends State<DashboardScreen>
                           }
                         },
                       ),
-                    ],
-                  ),
+                    );
+
+                    final itemCount = actions.length;
+                    final maxVisible = 4;
+                    final visibleCount =
+                        itemCount < maxVisible ? itemCount : maxVisible;
+                    const double gap = 12.0;
+                    final totalGap = (visibleCount - 1) * gap;
+                    final itemWidth =
+                        (constraints.maxWidth - totalGap) / visibleCount;
+
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: List.generate(actions.length, (i) {
+                          return Padding(
+                            padding: EdgeInsets.only(
+                                right: i == actions.length - 1 ? 0 : gap),
+                            child:
+                                SizedBox(width: itemWidth, child: actions[i]),
+                          );
+                        }),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -1545,35 +1682,31 @@ class _DashboardScreenState extends State<DashboardScreen>
     VoidCallback? onTap,
     bool enabled = true,
   }) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: (enabled ? color : Colors.grey).withAlpha(26),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: enabled ? color : Colors.grey, size: 22),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (enabled ? color : Colors.grey).withAlpha(26),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                    fontSize: 12 * scale,
-                    color: enabled ? const Color(0xFF555555) : Colors.grey),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
+            child: Icon(icon, color: enabled ? color : Colors.grey, size: 22),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+                fontSize: 12 * scale,
+                color: enabled ? const Color(0xFF555555) : Colors.grey),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }

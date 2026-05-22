@@ -109,6 +109,27 @@ Future<void> main() async {
     // ignore errors
   }
 
+  // Print persisted approver flag at startup (if present) to terminal/logcat
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.containsKey('is_mobile_punch_requires_approver')) {
+      final stored = prefs.getBool('is_mobile_punch_requires_approver');
+      final msg = 'STARTUP-DEBUG is_mobile_punch_requires_approver: $stored';
+      print(msg);
+      try {
+        stderr.writeln(msg);
+      } catch (_) {}
+      foundation.debugPrint(msg);
+    } else {
+      final msg = 'STARTUP-DEBUG is_mobile_punch_requires_approver: <not set>';
+      print(msg);
+      try {
+        stderr.writeln(msg);
+      } catch (_) {}
+      foundation.debugPrint(msg);
+    }
+  } catch (_) {}
+
   // Set preferred orientations
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -534,6 +555,36 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (mounted) Navigator.pop(context); // Close loading
 
+      // Debug: print full login result for terminal inspection
+      try {
+        final msg = 'LOGIN-RAW-RESULT: ${result.runtimeType} -> ${result}';
+        print(msg);
+        try {
+          stderr.writeln(msg);
+        } catch (_) {}
+        foundation.debugPrint(msg);
+      } catch (_) {}
+
+      try {
+        final rd = result['response_data'];
+        final msg2 = 'LOGIN-RESPONSE-DATA (${rd.runtimeType}): $rd';
+        print(msg2);
+        try {
+          stderr.writeln(msg2);
+        } catch (_) {}
+        foundation.debugPrint(msg2);
+      } catch (_) {}
+
+      try {
+        final rb = result['response_body'];
+        final msg3 = 'LOGIN-RESPONSE-BODY: $rb';
+        print(msg3);
+        try {
+          stderr.writeln(msg3);
+        } catch (_) {}
+        foundation.debugPrint(msg3);
+      } catch (_) {}
+
       // Process result
       final bool loginSuccess = result['success'] == true;
       final String message = result['message'] ??
@@ -660,6 +711,88 @@ class _HomeScreenState extends State<HomeScreen> {
           }
         } catch (_) {}
 
+        // Debug: print and persist is_mobile_punch_requires_approver if present
+        try {
+          dynamic findKeyRecursivelyDynamic(dynamic obj, String needle,
+              [int depth = 0]) {
+            if (depth > 8) return null;
+            if (obj == null) return null;
+            if (obj is Map) {
+              for (final k in obj.keys) {
+                if (k is String && k.toLowerCase() == needle.toLowerCase()) {
+                  return obj[k];
+                }
+              }
+              for (final entry in obj.entries) {
+                final v = entry.value;
+                if (v is Map || v is List) {
+                  final res = findKeyRecursivelyDynamic(v, needle, depth + 1);
+                  if (res != null) return res;
+                }
+              }
+            } else if (obj is List) {
+              for (final item in obj) {
+                if (item is Map || item is List) {
+                  final res =
+                      findKeyRecursivelyDynamic(item, needle, depth + 1);
+                  if (res != null) return res;
+                }
+              }
+            }
+            return null;
+          }
+
+          var approverFlag = findKeyRecursivelyDynamic(
+              result, 'is_mobile_punch_requires_approver');
+          if (approverFlag == null && result['response_data'] is Map) {
+            approverFlag = findKeyRecursivelyDynamic(
+                result['response_data'], 'is_mobile_punch_requires_approver');
+          }
+          if (approverFlag == null) {
+            approverFlag = findKeyRecursivelyDynamic(
+                userData, 'is_mobile_punch_requires_approver');
+          }
+
+          try {
+            final msg =
+                'TERMINAL-DEBUG is_mobile_punch_requires_approver: $approverFlag';
+            // Output to multiple channels so it appears in terminal/logcat
+            print(msg);
+            try {
+              stderr.writeln(msg);
+            } catch (_) {}
+            foundation.debugPrint(msg);
+          } catch (_) {}
+
+          if (approverFlag != null) {
+            userData['is_mobile_punch_requires_approver'] = approverFlag;
+
+            // Persist the flag to SharedPreferences for terminal-level inspection
+            try {
+              final prefs2 = await SharedPreferences.getInstance();
+              bool approverBool = false;
+              if (approverFlag is bool) {
+                approverBool = approverFlag;
+              } else if (approverFlag is int) {
+                approverBool = approverFlag == 1;
+              } else if (approverFlag is String) {
+                final low = approverFlag.toLowerCase();
+                approverBool = (low == '1' || low == 'true' || low == 'yes');
+              }
+
+              await prefs2.setBool(
+                  'is_mobile_punch_requires_approver', approverBool);
+              final persistedMsg =
+                  'PERSISTED-DEBUG is_mobile_punch_requires_approver: $approverBool';
+              print(persistedMsg);
+              try {
+                stderr.writeln(persistedMsg);
+              } catch (_) {}
+              foundation.debugPrint(persistedMsg);
+            } catch (_) {}
+          }
+        } catch (_) {}
+
         // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(
             userData['emp_name'] ?? username, userData, empKey ?? '');
@@ -702,6 +835,18 @@ class _HomeScreenState extends State<HomeScreen> {
       String displayName, Map<String, dynamic> userData, String empKey) {
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
+
+      try {
+        final val =
+            userData['is_mobile_punch_requires_approver'] ?? '<not set>';
+        final navMsg = 'NAV-DEBUG is_mobile_punch_requires_approver: $val';
+        print(navMsg);
+        try {
+          stderr.writeln(navMsg);
+        } catch (_) {}
+        foundation.debugPrint(navMsg);
+      } catch (_) {}
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

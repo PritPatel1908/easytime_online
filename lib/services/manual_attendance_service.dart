@@ -9,20 +9,61 @@ class ManualAttendanceService {
 
   Future<List<ManualAttendanceApplication>> getByEmpKeys(
       List<String> empKeys) async {
-    final url =
-        Uri.parse('$baseUrl/get_manual_attendance_applications_by_emp_keys');
-    final resp = await http.post(url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'employee_keys': empKeys}));
-    if (resp.statusCode == 200) {
-      final List data = jsonDecode(resp.body);
-      return data
-          .map((e) => ManualAttendanceApplication.fromJson(
-              Map<String, dynamic>.from(e)))
-          .toList();
-    }
+    final url = Uri.parse(
+        '$baseUrl/api/get_manual_attendance_applications_by_emp_keys');
+    final joined = empKeys.join(',');
+
+    // Try form-encoded POST first (server generally expects form data)
+    try {
+      final resp = await http.post(url,
+          headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+          body: {'emp_key': joined, 'employee_keys': joined}).timeout(
+        const Duration(seconds: 15),
+      );
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body);
+        List<dynamic> listData = [];
+        if (decoded is List) {
+          listData = decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          listData = decoded['data'] as List<dynamic>;
+        }
+        return listData
+            .map((e) => ManualAttendanceApplication.fromJson(
+                Map<String, dynamic>.from(e)))
+            .toList();
+      }
+    } catch (_) {}
+
+    // JSON fallback
+    try {
+      final resp = await http
+          .post(url,
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: jsonEncode({'employee_keys': empKeys}))
+          .timeout(
+            const Duration(seconds: 15),
+          );
+      if (resp.statusCode == 200) {
+        final decoded = jsonDecode(resp.body);
+        List<dynamic> listData = [];
+        if (decoded is List) {
+          listData = decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          listData = decoded['data'] as List<dynamic>;
+        }
+        return listData
+            .map((e) => ManualAttendanceApplication.fromJson(
+                Map<String, dynamic>.from(e)))
+            .toList();
+      }
+    } catch (_) {}
+
     throw Exception(
-        'Failed to fetch manual attendance applications: ${resp.statusCode}');
+        'Failed to fetch manual attendance applications: ${url.toString()}');
   }
 
   Future<bool> validateAndSubmit(ManualAttendanceApplication app) async {
@@ -31,8 +72,8 @@ class ManualAttendanceService {
 
   Future<bool> validateAndSubmitWithCreator(ManualAttendanceApplication app,
       {String? creatorOwner}) async {
-    final url =
-        Uri.parse('$baseUrl/validate_and_submit_manual_attendance_application');
+    final url = Uri.parse(
+        '$baseUrl/api/validate_and_submit_manual_attendance_application');
     final joined = app.employeeKeys.join(',');
 
     final bodyMap = {

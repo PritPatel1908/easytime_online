@@ -427,73 +427,79 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
 
   Future<void> _bulkRejectSelected() async {
     final count = _selectedItems.length;
-    final reason = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
-      builder: (ctx) {
-        final controller = TextEditingController();
-        final mq = MediaQuery.of(ctx);
-        final maxH = mq.size.height * 0.6;
-        return Padding(
-          padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-          child: StatefulBuilder(builder: (ctx2, setStateSheet) {
-            return SafeArea(
-              top: false,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxH),
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Reject $count selected request(s)',
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        const Text('Please enter reason for rejection'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: controller,
-                          autofocus: true,
-                          maxLines: 5,
-                          onChanged: (_) => setStateSheet(() {}),
-                          decoration: const InputDecoration(
-                              hintText: 'Rejection reason',
-                              border: OutlineInputBorder()),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(null),
-                                child: const Text('Cancel')),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: controller.text.trim().isEmpty
-                                  ? null
-                                  : () => Navigator.of(ctx)
-                                      .pop(controller.text.trim()),
-                              child: const Text('Reject'),
-                            ),
-                          ],
-                        )
-                      ],
+    final controller = TextEditingController();
+    String? reason;
+    try {
+      reason = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+        builder: (ctx) {
+          final mq = MediaQuery.of(ctx);
+          final maxH = mq.size.height * 0.6;
+          return Padding(
+            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+            child: StatefulBuilder(builder: (ctx2, setStateSheet) {
+              return SafeArea(
+                top: false,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxH),
+                  child: SingleChildScrollView(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Reject $count selected request(s)',
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          const Text('Please enter reason for rejection'),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: controller,
+                            autofocus: true,
+                            maxLines: 5,
+                            onChanged: (_) => setStateSheet(() {}),
+                            decoration: const InputDecoration(
+                                hintText: 'Rejection reason',
+                                border: OutlineInputBorder()),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(null),
+                                  child: const Text('Cancel')),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: controller.text.trim().isEmpty
+                                    ? null
+                                    : () => Navigator.of(ctx)
+                                        .pop(controller.text.trim()),
+                                child: const Text('Reject'),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          }),
-        );
-      },
-    );
+              );
+            }),
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
 
-    if (reason == null || reason.trim().isEmpty) return;
+    final r = (reason ?? '').trim();
+    if (r.isEmpty) return;
 
     // Group selected ids by entity_name
     final Map<String, List<String>> groups = {};
@@ -525,7 +531,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
         'entity_name': e.key,
         'action': 'reject_selected',
         'selected_ids': e.value,
-        'reason': reason.trim(),
+        'reason': r,
       };
     }).toList();
 
@@ -585,69 +591,75 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
 
   Future<void> _rejectSingle(
       String itemKey, Map<String, dynamic> r, String displayTitle) async {
-    final reason = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
-      builder: (ctx) {
-        final controller = TextEditingController();
-        final mq = MediaQuery.of(ctx);
-        final maxH = mq.size.height * 0.6;
-        return Padding(
-          padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-          child: StatefulBuilder(builder: (ctx2, setStateSheet) {
-            return SafeArea(
-              top: false,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxH),
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Please enter reason for rejection'),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: controller,
-                          autofocus: true,
-                          maxLines: 5,
-                          onChanged: (_) => setStateSheet(() {}),
-                          decoration: const InputDecoration(
-                              hintText: 'Rejection reason',
-                              border: OutlineInputBorder()),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                                onPressed: () => Navigator.of(ctx).pop(null),
-                                child: const Text('Cancel')),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: controller.text.trim().isEmpty
-                                  ? null
-                                  : () => Navigator.of(ctx)
-                                      .pop(controller.text.trim()),
-                              child: const Text('Reject'),
-                            ),
-                          ],
-                        )
-                      ],
+    final controller = TextEditingController();
+    String? reason;
+    try {
+      reason = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+        builder: (ctx) {
+          final mq = MediaQuery.of(ctx);
+          final maxH = mq.size.height * 0.6;
+          return Padding(
+            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+            child: StatefulBuilder(builder: (ctx2, setStateSheet) {
+              return SafeArea(
+                top: false,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: maxH),
+                  child: SingleChildScrollView(
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Please enter reason for rejection'),
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: controller,
+                            autofocus: true,
+                            maxLines: 5,
+                            onChanged: (_) => setStateSheet(() {}),
+                            decoration: const InputDecoration(
+                                hintText: 'Rejection reason',
+                                border: OutlineInputBorder()),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(null),
+                                  child: const Text('Cancel')),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed: controller.text.trim().isEmpty
+                                    ? null
+                                    : () => Navigator.of(ctx)
+                                        .pop(controller.text.trim()),
+                                child: const Text('Reject'),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          }),
-        );
-      },
-    );
+              );
+            }),
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
 
-    if (reason == null || reason.trim().isEmpty) return;
+    final rr = (reason ?? '').trim();
+    if (rr.isEmpty) return;
 
     // Prepare API params
     final entityName =
@@ -684,7 +696,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
       action: 'reject_selected',
       entityName: entityName,
       selectedIds: selectedId,
-      reason: reason.trim(),
+      reason: rr,
     );
 
     if (res['success'] == true) {
@@ -709,7 +721,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Rejected: $displayTitle — $reason')));
+          SnackBar(content: Text('Rejected: $displayTitle — $rr')));
     } else {
       final msg = res['message'] ?? 'Failed to reject';
       ScaffoldMessenger.of(context)

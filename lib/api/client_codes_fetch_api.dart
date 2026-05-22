@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -73,6 +74,35 @@ class ApiService {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? baseUrl = prefs.getString('base_api_url');
     return baseUrl ?? defaultBaseUrl;
+  }
+
+  // Helper: recursively find a key in nested Maps/Lists (case-insensitive)
+  static dynamic _findKeyRecursively(dynamic obj, String needle,
+      [int depth = 0]) {
+    if (depth > 8) return null;
+    if (obj == null) return null;
+    if (obj is Map) {
+      for (final k in obj.keys) {
+        if (k is String && k.toLowerCase() == needle.toLowerCase()) {
+          return obj[k];
+        }
+      }
+      for (final entry in obj.entries) {
+        final v = entry.value;
+        if (v is Map || v is List) {
+          final res = _findKeyRecursively(v, needle, depth + 1);
+          if (res != null) return res;
+        }
+      }
+    } else if (obj is List) {
+      for (final item in obj) {
+        if (item is Map || item is List) {
+          final res = _findKeyRecursively(item, needle, depth + 1);
+          if (res != null) return res;
+        }
+      }
+    }
+    return null;
   }
 
   // Verify client code and get the API URL
@@ -280,6 +310,16 @@ class ApiService {
             }
           }
 
+          // Debug: print raw HTTP response for the login attempt
+          try {
+            final respMsg =
+                'API-LOGIN-HTTP-RESPONSE url=$loginUrl status=${response.statusCode} headers=${response.headers} body=${response.body}';
+            print(respMsg);
+            try {
+              stderr.writeln(respMsg);
+            } catch (_) {}
+          } catch (_) {}
+
           // Parse response
           bool isSuccess = false;
           String message = 'Login failed: Invalid credentials';
@@ -288,10 +328,36 @@ class ApiService {
 
           try {
             responseData = json.decode(response.body);
+            isJsonResponse = true;
           } catch (e) {
             isJsonResponse = false;
             responseData = {'raw_text': response.body};
           }
+
+          // Extract and inject approver flag into parsed data for callers.
+          try {
+            dynamic approverFlag;
+            if (responseData is Map) {
+              if (responseData
+                  .containsKey('is_mobile_punch_requires_approver')) {
+                approverFlag =
+                    responseData['is_mobile_punch_requires_approver'];
+              } else {
+                approverFlag = _findKeyRecursively(
+                    responseData, 'is_mobile_punch_requires_approver');
+              }
+            }
+            if (approverFlag != null && responseData is Map) {
+              responseData['is_mobile_punch_requires_approver'] = approverFlag;
+              if (responseData.containsKey('user_data') &&
+                  responseData['user_data'] is Map) {
+                try {
+                  responseData['user_data']
+                      ['is_mobile_punch_requires_approver'] = approverFlag;
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
 
           if (response.statusCode == 200) {
             if (isJsonResponse) {
@@ -458,6 +524,16 @@ class ApiService {
         };
       }
 
+      // Debug: print raw HTTP response from the successful attempt
+      try {
+        final respMsg =
+            'API-LOGIN-PHP-HTTP-RESPONSE url=$usedLoginUrl status=${successfulResponse.statusCode} headers=${successfulResponse.headers} body=${successfulResponse.body}';
+        print(respMsg);
+        try {
+          stderr.writeln(respMsg);
+        } catch (_) {}
+      } catch (_) {}
+
       Map<String, dynamic> responseData = {};
       bool isJsonResponse = true;
       try {
@@ -486,12 +562,65 @@ class ApiService {
         }
       }
 
+      // Extra debug: log parsed response_data keys and try to extract
+      // `is_mobile_punch_requires_approver` so callers can rely on a
+      // consistent top-level result field.
+      try {
+        String keys = '';
+        if (responseData is Map) {
+          keys = responseData.keys.join(',');
+        }
+        final debugMsg =
+            'API-LOGIN-PHP-PARSED-RESPONSE_KEYS: url=$usedLoginUrl keys=[$keys]';
+        print(debugMsg);
+        try {
+          stderr.writeln(debugMsg);
+        } catch (_) {}
+      } catch (_) {}
+
+      // moved helper to class-level `_findKeyRecursively`
+
+      dynamic approverFlag;
+      try {
+        if (responseData is Map) {
+          if (responseData.containsKey('is_mobile_punch_requires_approver')) {
+            approverFlag = responseData['is_mobile_punch_requires_approver'];
+          } else {
+            approverFlag = _findKeyRecursively(
+                responseData, 'is_mobile_punch_requires_approver');
+          }
+        }
+
+        final pfMsg =
+            'API-LOGIN-PHP-FOUND-APPROVER-FLAG: $approverFlag (url=$usedLoginUrl)';
+        print(pfMsg);
+        try {
+          stderr.writeln(pfMsg);
+        } catch (_) {}
+      } catch (_) {}
+
+      // Ensure the flag is present inside the parsed response so callers
+      // that extract `response_data['user_data']` see it.
+      try {
+        if (approverFlag != null && responseData is Map) {
+          responseData['is_mobile_punch_requires_approver'] = approverFlag;
+          if (responseData.containsKey('user_data') &&
+              responseData['user_data'] is Map) {
+            try {
+              responseData['user_data']['is_mobile_punch_requires_approver'] =
+                  approverFlag;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+
       return {
         'success': isSuccess,
         'message': message,
         'response_code': successfulResponse.statusCode,
         'response_body': successfulResponse.body,
         'response_data': responseData,
+        'is_mobile_punch_requires_approver': approverFlag,
         'url_used': usedLoginUrl,
         'method_used': attemptDescription,
       };

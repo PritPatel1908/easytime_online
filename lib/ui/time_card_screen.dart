@@ -358,115 +358,184 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
   Widget _buildAttendanceTable() {
     final List<dynamic> attendanceRecords = _attendanceData ?? [];
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 16,
-          bottom: MediaQuery.of(context).viewPadding.bottom + 64),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: const Text('Attendance Records',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columnSpacing: 24,
-            dataRowMinHeight: 48,
-            dataRowMaxHeight: 64,
-            showCheckboxColumn: false,
-            columns: const [
-              DataColumn(
-                  label: Text('Date',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Shift',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('In Time',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Out Time',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Late (min)',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Early (min)',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Work (min)',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Status',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-              DataColumn(
-                  label: Text('Remarks',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
-            ],
-            rows: attendanceRecords.map<DataRow>((record) {
-              final rawDate = record['date']?.toString() ?? '';
-              String dateStr = _formatDateShort(rawDate);
-              String shift = record['shift'] ?? '';
-              String inTime = record['in_time'] ?? '-';
-              String outTime = record['out_time'] ?? '-';
-              String status = record['status'] ?? '';
-              String remarks = record['remarks'] ?? '-';
-              final lateMinutes = record['late_minutes'];
-              final earlyMinutes = record['early_minutes'];
-              final totalWorking = record['total_working_minutes'];
-              final String lateStr = _minutesToHHMM(lateMinutes);
-              final String earlyStr = _minutesToHHMM(earlyMinutes);
-              final String workStr = _minutesToHHMM(totalWorking);
+    return LayoutBuilder(builder: (context, constraints) {
+      // Fixed column widths to keep header and rows aligned.
+      const double wDate = 120;
+      const double wShift = 120;
+      const double wIn = 110;
+      const double wOut = 110;
+      const double wLate = 110;
+      const double wEarly = 110;
+      const double wWork = 110;
+      const double wStatus = 140;
+      const double wRemarks = 220;
 
-              final bool selected = _selectedRecordDate == rawDate;
+      final double totalWidth = wDate +
+          wShift +
+          wIn +
+          wOut +
+          wLate +
+          wEarly +
+          wWork +
+          wStatus +
+          wRemarks;
 
-              return DataRow(
-                  selected: selected,
-                  onSelectChanged: (val) {
-                    setState(() {
-                      if (val == true) {
-                        _selectedRecordDate = rawDate;
-                      } else {
-                        _selectedRecordDate = null;
-                      }
-                    });
-                  },
-                  color: WidgetStatePropertyAll(
-                      selected ? Colors.grey[200] : null),
-                  cells: [
-                    DataCell(Text(dateStr)),
-                    DataCell(Text(shift)),
-                    DataCell(Text(inTime)),
-                    DataCell(Text(outTime)),
-                    DataCell(Text(lateStr)),
-                    DataCell(Text(earlyStr)),
-                    DataCell(Text(workStr)),
-                    DataCell(Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: _getStatusColor(status).withAlpha(26),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(_getStatusIcon(status),
-                              color: _getStatusColor(status), size: 16),
-                          const SizedBox(width: 4),
-                          Text(status,
-                              style: TextStyle(
-                                  color: _getStatusColor(status),
-                                  fontWeight: FontWeight.bold))
-                        ]))),
-                    DataCell(Text(remarks)),
-                  ]);
-            }).toList(),
+      return Padding(
+        padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewPadding.bottom + 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: const Text('Attendance Records',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+
+          // Horizontal scroll wraps both header and rows so they stay aligned.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: totalWidth,
+                child: Column(children: [
+                  // Sticky header row (will remain visible while the rows list scrolls).
+                  Container(
+                    height: 56,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey.withAlpha(51))),
+                    child: Row(children: [
+                      SizedBox(
+                          width: wDate,
+                          child: const Text('Date',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wShift,
+                          child: const Text('Shift',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wIn,
+                          child: const Text('In Time',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wOut,
+                          child: const Text('Out Time',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wLate,
+                          child: const Text('Late (min)',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wEarly,
+                          child: const Text('Early (min)',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wWork,
+                          child: const Text('Work (min)',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wStatus,
+                          child: const Text('Status',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                      SizedBox(
+                          width: wRemarks,
+                          child: const Text('Remarks',
+                              style: TextStyle(fontWeight: FontWeight.bold))),
+                    ]),
+                  ),
+
+                  // Scrollable rows (ListView) so header stays pinned above.
+                  Expanded(
+                    child: ListView.builder(
+                        itemCount: attendanceRecords.length +
+                            1, // extra item for legend
+                        itemBuilder: (context, index) {
+                          if (index >= attendanceRecords.length) {
+                            return Padding(
+                                padding: const EdgeInsets.only(top: 24),
+                                child: _buildLegend());
+                          }
+
+                          final record = attendanceRecords[index];
+                          final rawDate = record['date']?.toString() ?? '';
+                          final String dateStr = _formatDateShort(rawDate);
+                          final String shift = record['shift'] ?? '';
+                          final String inTime = record['in_time'] ?? '-';
+                          final String outTime = record['out_time'] ?? '-';
+                          final String status = record['status'] ?? '';
+                          final String remarks = record['remarks'] ?? '-';
+                          final lateMinutes = record['late_minutes'];
+                          final earlyMinutes = record['early_minutes'];
+                          final totalWorking = record['total_working_minutes'];
+                          final String lateStr = _minutesToHHMM(lateMinutes);
+                          final String earlyStr = _minutesToHHMM(earlyMinutes);
+                          final String workStr = _minutesToHHMM(totalWorking);
+
+                          final bool selected = _selectedRecordDate == rawDate;
+
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (selected) {
+                                  _selectedRecordDate = null;
+                                } else {
+                                  _selectedRecordDate = rawDate;
+                                }
+                              });
+                            },
+                            child: Container(
+                              height: 64,
+                              color: selected ? Colors.grey[200] : null,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              child: Row(children: [
+                                SizedBox(width: wDate, child: Text(dateStr)),
+                                SizedBox(width: wShift, child: Text(shift)),
+                                SizedBox(width: wIn, child: Text(inTime)),
+                                SizedBox(width: wOut, child: Text(outTime)),
+                                SizedBox(width: wLate, child: Text(lateStr)),
+                                SizedBox(width: wEarly, child: Text(earlyStr)),
+                                SizedBox(width: wWork, child: Text(workStr)),
+                                SizedBox(
+                                    width: wStatus,
+                                    child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                            color: _getStatusColor(status)
+                                                .withAlpha(26),
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                        child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(_getStatusIcon(status),
+                                                  color:
+                                                      _getStatusColor(status),
+                                                  size: 16),
+                                              const SizedBox(width: 6),
+                                              Text(status,
+                                                  style: TextStyle(
+                                                      color: _getStatusColor(
+                                                          status),
+                                                      fontWeight:
+                                                          FontWeight.bold))
+                                            ]))),
+                                SizedBox(width: wRemarks, child: Text(remarks)),
+                              ]),
+                            ),
+                          );
+                        }),
+                  )
+                ]),
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        _buildLegend(),
-      ]),
-    );
+        ]),
+      );
+    });
   }
 
   Widget _buildErrorView() {
