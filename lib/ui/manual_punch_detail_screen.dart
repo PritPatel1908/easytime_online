@@ -84,7 +84,10 @@ class ManualPunchDetailScreen extends StatelessWidget {
         record['punch_type_name'] ??
         record['punch_type']);
     final reason = _fmt(record['miss_punch_reason'] ?? record['reason']);
-    final date = _formatDate(record['miss_punch_application_date'] ??
+    final date = _formatDate(record['punch_date_only'] ??
+        record['punch_date'] ??
+        record['miss_punch_punch_time'] ??
+        record['miss_punch_application_date'] ??
         record['miss_punch_created_at']);
     final time = _formatTime(
         record['punch_time_only'] ?? record['miss_punch_time'] ?? '');

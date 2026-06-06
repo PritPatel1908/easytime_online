@@ -330,11 +330,13 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                                           a['punch_type'] ??
                                           '';
 
-                                      final dateRaw =
-                                          (a['miss_punch_application_date'] ??
-                                                  a['miss_punch_created_at'] ??
-                                                  '')
-                                              .toString();
+                                      final dateRaw = (a['punch_date_only'] ??
+                                              a['punch_date'] ??
+                                              a['miss_punch_punch_time'] ??
+                                              a['miss_punch_application_date'] ??
+                                              a['miss_punch_created_at'] ??
+                                              '')
+                                          .toString();
                                       String date = '';
                                       if (dateRaw.isNotEmpty) {
                                         try {
@@ -354,8 +356,6 @@ class _ManualPunchListScreenState extends State<ManualPunchListScreen> {
                                           a['punch_time_only'] ??
                                               a['miss_punch_time'] ??
                                               '');
-                                      final formattedTime =
-                                          date; // show date as formattedTime above card if needed
 
                                       String empDisplay = '';
                                       try {
