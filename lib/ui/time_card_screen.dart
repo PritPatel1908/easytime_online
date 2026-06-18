@@ -370,7 +370,7 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
       const double wStatus = 140;
       const double wRemarks = 220;
 
-      final double totalWidth = wDate +
+      const double totalWidth = wDate +
           wShift +
           wIn +
           wOut +
@@ -406,42 +406,42 @@ class _TimeCardScreenState extends State<TimeCardScreen> {
                     decoration: BoxDecoration(
                         color: Colors.white,
                         border: Border.all(color: Colors.grey.withAlpha(51))),
-                    child: Row(children: [
+                    child: const Row(children: [
                       SizedBox(
                           width: wDate,
-                          child: const Text('Date',
+                          child: Text('Date',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wShift,
-                          child: const Text('Shift',
+                          child: Text('Shift',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wIn,
-                          child: const Text('In Time',
+                          child: Text('In Time',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wOut,
-                          child: const Text('Out Time',
+                          child: Text('Out Time',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wLate,
-                          child: const Text('Late (min)',
+                          child: Text('Late (min)',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wEarly,
-                          child: const Text('Early (min)',
+                          child: Text('Early (min)',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wWork,
-                          child: const Text('Work (min)',
+                          child: Text('Work (min)',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wStatus,
-                          child: const Text('Status',
+                          child: Text('Status',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                       SizedBox(
                           width: wRemarks,
-                          child: const Text('Remarks',
+                          child: Text('Remarks',
                               style: TextStyle(fontWeight: FontWeight.bold))),
                     ]),
                   ),

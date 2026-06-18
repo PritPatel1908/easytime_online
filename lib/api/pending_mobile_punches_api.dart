@@ -92,8 +92,9 @@ class PendingMobilePunchesApi {
     try {
       final baseUrl = await _getBaseApiUrl();
       var cleanUrl = baseUrl;
-      if (cleanUrl.endsWith('/'))
+      if (cleanUrl.endsWith('/')) {
         cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+      }
       final apiUrl = '$cleanUrl/api/approve_mobile_punch';
 
       final inOutPunchKey = keys.join(',');

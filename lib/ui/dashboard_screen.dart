@@ -29,6 +29,8 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easytime_online/main/main.dart';
 import 'package:easytime_online/api/client_codes_fetch_api.dart';
+import 'package:provider/provider.dart';
+import 'package:easytime_online/services/permissions_provider.dart';
 
 // Production: treat debug-mode checks as disabled (remove debug-only branches)
 const bool kDebugMode = false;
@@ -2549,28 +2551,41 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildProjectsTab() {
     // Shortcut action cards in a 2x2 grid for the Applications tab
-    final actions = [
-      {
+    final perms = Provider.of<PermissionsProvider>(context, listen: true);
+    final List<Map<String, Object>> actions = [];
+
+    // Add tiles only if the user has read permission for that entity.
+    // If permissions are not loaded yet, default to showing tiles.
+    bool rightsLoaded = perms.hasAnyRights;
+
+    if (!rightsLoaded || perms.canRead('leave_application')) {
+      actions.add({
         'title': 'Leave Application',
         'icon': Icons.beach_access,
         'color': Colors.blue,
-      },
-      {
+      });
+    }
+    if (!rightsLoaded || perms.canRead('pending_request')) {
+      actions.add({
         'title': 'Pending Request',
         'icon': Icons.pending_actions,
         'color': Colors.teal,
-      },
-      {
+      });
+    }
+    if (!rightsLoaded || perms.canRead('manual_punch')) {
+      actions.add({
         'title': 'Manual Punch',
         'icon': Icons.edit,
         'color': Colors.orange,
-      },
-      {
+      });
+    }
+    if (!rightsLoaded || perms.canRead('manual_attendance')) {
+      actions.add({
         'title': 'Manual Attendance',
         'icon': Icons.history_toggle_off,
         'color': Colors.green,
-      },
-    ];
+      });
+    }
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),

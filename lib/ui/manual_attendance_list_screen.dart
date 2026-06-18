@@ -7,6 +7,8 @@ import 'package:easytime_online/ui/manual_attendance_detail_screen.dart';
 import 'package:easytime_online/api/get_emp_scope_api.dart';
 import 'package:easytime_online/api/manual_attendance_api.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:easytime_online/services/permissions_provider.dart';
 
 class ManualAttendanceListScreen extends StatefulWidget {
   final String empKey;
@@ -142,6 +144,15 @@ class _ManualAttendanceListScreenState
 
   Future<void> _loadUserRights() async {
     try {
+      try {
+        final perms = Provider.of<PermissionsProvider>(context, listen: false);
+        if (perms.hasAnyRights) {
+          _hasCreatePermission = perms.canCreate('manual_attendance');
+          _hasReadPermission = perms.canRead('manual_attendance');
+          return;
+        }
+      } catch (_) {}
+
       final prefs = await SharedPreferences.getInstance();
       final s = prefs.getString('user_rights_json') ??
           prefs.getString('user_rights') ??

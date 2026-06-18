@@ -5,6 +5,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:easytime_online/api/pending_requests_api.dart';
 import 'package:easytime_online/ui/generic_request_detail_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:easytime_online/services/permissions_provider.dart';
 
 class PendingRequestScreen extends StatefulWidget {
   final String empKey;
@@ -65,6 +67,29 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
 
   Future<void> _loadUserRights() async {
     try {
+      // Prefer provider if available
+      try {
+        final perms = Provider.of<PermissionsProvider>(context, listen: false);
+        if (perms.hasAnyRights) {
+          final Map<String, bool> parsed = {};
+          for (final k in perms.rights.keys) {
+            try {
+              final v = perms.rights[k];
+              final appr = v is Map ? v['approve'] : null;
+              parsed[k.toString()] = _coerceToBool(appr);
+            } catch (_) {
+              parsed[k.toString()] = false;
+            }
+          }
+          setState(() {
+            _approveRights = parsed;
+            _canApproveAllEntities =
+                _approveRights.values.any((v) => v == true);
+          });
+          return;
+        }
+      } catch (_) {}
+
       final prefs = await SharedPreferences.getInstance();
       final s = prefs.getString('user_rights_json') ??
           prefs.getString('user_rights') ??

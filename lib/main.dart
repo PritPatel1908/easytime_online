@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:easytime_online/services/permissions_provider.dart';
 import 'dart:async'; // Added for Timer
 
 // Utility class to hide system navigation bar
@@ -147,7 +149,12 @@ Future<void> main() async {
     SystemUIUtil.checkAndHideNavigationBarIfNeeded();
   });
 
-  runApp(MyApp(systemUIObserver: systemUIObserver));
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => PermissionsProvider()..loadFromPrefs(),
+      child: MyApp(systemUIObserver: systemUIObserver),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -708,6 +715,17 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             userData['user_rights'] = ur;
             await prefs.setString('user_rights_json', jsonEncode(ur));
+
+            // Update global permissions provider if available
+            try {
+              final perms =
+                  Provider.of<PermissionsProvider>(context, listen: false);
+              if (ur is Map<String, dynamic>) {
+                await perms.setRights(Map<String, dynamic>.from(ur));
+              } else if (ur is Map) {
+                await perms.setRights(Map<String, dynamic>.from(ur as Map));
+              }
+            } catch (_) {}
           }
         } catch (_) {}
 

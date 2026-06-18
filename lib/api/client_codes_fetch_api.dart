@@ -337,17 +337,13 @@ class ApiService {
           // Extract and inject approver flag into parsed data for callers.
           try {
             dynamic approverFlag;
-            if (responseData is Map) {
-              if (responseData
-                  .containsKey('is_mobile_punch_requires_approver')) {
-                approverFlag =
-                    responseData['is_mobile_punch_requires_approver'];
-              } else {
-                approverFlag = _findKeyRecursively(
-                    responseData, 'is_mobile_punch_requires_approver');
-              }
+            if (responseData.containsKey('is_mobile_punch_requires_approver')) {
+              approverFlag = responseData['is_mobile_punch_requires_approver'];
+            } else {
+              approverFlag = _findKeyRecursively(
+                  responseData, 'is_mobile_punch_requires_approver');
             }
-            if (approverFlag != null && responseData is Map) {
+            if (approverFlag != null) {
               responseData['is_mobile_punch_requires_approver'] = approverFlag;
               if (responseData.containsKey('user_data') &&
                   responseData['user_data'] is Map) {
@@ -567,9 +563,7 @@ class ApiService {
       // consistent top-level result field.
       try {
         String keys = '';
-        if (responseData is Map) {
-          keys = responseData.keys.join(',');
-        }
+        keys = responseData.keys.join(',');
         final debugMsg =
             'API-LOGIN-PHP-PARSED-RESPONSE_KEYS: url=$usedLoginUrl keys=[$keys]';
         print(debugMsg);
@@ -582,13 +576,11 @@ class ApiService {
 
       dynamic approverFlag;
       try {
-        if (responseData is Map) {
-          if (responseData.containsKey('is_mobile_punch_requires_approver')) {
-            approverFlag = responseData['is_mobile_punch_requires_approver'];
-          } else {
-            approverFlag = _findKeyRecursively(
-                responseData, 'is_mobile_punch_requires_approver');
-          }
+        if (responseData.containsKey('is_mobile_punch_requires_approver')) {
+          approverFlag = responseData['is_mobile_punch_requires_approver'];
+        } else {
+          approverFlag = _findKeyRecursively(
+              responseData, 'is_mobile_punch_requires_approver');
         }
 
         final pfMsg =
@@ -602,7 +594,7 @@ class ApiService {
       // Ensure the flag is present inside the parsed response so callers
       // that extract `response_data['user_data']` see it.
       try {
-        if (approverFlag != null && responseData is Map) {
+        if (approverFlag != null) {
           responseData['is_mobile_punch_requires_approver'] = approverFlag;
           if (responseData.containsKey('user_data') &&
               responseData['user_data'] is Map) {

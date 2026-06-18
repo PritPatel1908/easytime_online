@@ -7,6 +7,8 @@ import 'package:easytime_online/api/leave_applications_api.dart';
 import 'package:easytime_online/ui/leave_application_detail_screen.dart';
 import 'package:easytime_online/ui/new_leave_application_screen.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
+import 'package:easytime_online/services/permissions_provider.dart';
 
 class LeaveApplicationScreen extends StatefulWidget {
   final String empKey;
@@ -77,6 +79,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
 
   Future<void> _loadUserRights() async {
     try {
+      // Prefer provider if available
+      try {
+        final perms = Provider.of<PermissionsProvider>(context, listen: false);
+        if (perms.hasAnyRights) {
+          _hasCreatePermission = perms.canCreate('leave_application');
+          _hasReadPermission = perms.canRead('leave_application');
+          return;
+        }
+      } catch (_) {}
+
       final prefs = await SharedPreferences.getInstance();
       final s = prefs.getString('user_rights_json') ??
           prefs.getString('user_rights') ??

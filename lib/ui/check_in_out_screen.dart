@@ -218,8 +218,9 @@ class _CheckInOutScreenState extends State<CheckInOutScreen>
       debugPrint('initCamera: controller created');
       // start initialize and expose future so UI can build a FutureBuilder
       _cameraInitFuture = _cameraController!.initialize();
-      if (mounted)
+      if (mounted) {
         setState(() {}); // make controller and future available to builder
+      }
       debugPrint('initCamera: initializing controller');
       await _cameraInitFuture;
       debugPrint('initCamera: controller initialized');
