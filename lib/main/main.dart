@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:easytime_online/data_storage_service.dart';
+import 'package:easytime_online/services/permissions_provider.dart';
 import 'dart:async'; // Added for Timer
 
 // Utility class to hide system navigation bar
@@ -598,6 +601,49 @@ class _HomeScreenState extends State<HomeScreen> {
             await prefs.remove('latest_announcements_json');
           }
         } catch (_) {}
+
+        // Save user_rights from the login response (if present) and update
+        // persistent storage + permissions provider so dashboard can use it.
+        try {
+          dynamic ur;
+          if (result['response_data'] is Map &&
+              result['response_data'].containsKey('user_rights')) {
+            ur = result['response_data']['user_rights'];
+          } else if (result.containsKey('user_rights')) {
+            ur = result['user_rights'];
+          }
+
+          if (ur != null) {
+            if (ur is String) {
+              try {
+                ur = json.decode(ur);
+              } catch (_) {}
+            }
+            // attach to userData so Dashboard can read synchronously
+            userData['user_rights'] = ur;
+
+            // persist via centralized helper
+            try {
+              await DataStorageService.saveUserRights(
+                  Map<String, dynamic>.from(ur as Map));
+              print(
+                  'LOGIN-DEBUG saving user_rights_json (main): ${jsonEncode(ur)}');
+            } catch (e) {
+              print('LOGIN-DEBUG error saving user_rights_json (main): $e');
+            }
+
+            // update provider if present
+            try {
+              final perms =
+                  Provider.of<PermissionsProvider>(context, listen: false);
+              if (perms != null) {
+                await perms.setRights(Map<String, dynamic>.from(ur as Map));
+              }
+            } catch (_) {}
+          }
+        } catch (e) {
+          print('LOGIN-DEBUG: failed to extract/save user_rights: $e');
+        }
 
         // Navigate to dashboard using helper method (include empKey)
         _navigateToDashboardAfterDelay(

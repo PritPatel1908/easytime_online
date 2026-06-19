@@ -17,6 +17,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   bool _isLoading = true;
   String _error = '';
   List<Map<String, dynamic>> _emps = [];
+  Map<String, dynamic>? _summary;
   String _query = '';
 
   final FocusNode _searchFocus = FocusNode();
@@ -55,6 +56,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               if (e is Map<String, dynamic>) return e;
               return Map<String, dynamic>.from(e as Map);
             }).toList();
+            if (decoded.containsKey('summary') &&
+                decoded['summary'] is Map<String, dynamic>) {
+              _summary = Map<String, dynamic>.from(decoded['summary'] as Map);
+            }
             _isLoading = true;
           });
           return;
@@ -81,6 +86,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
         setState(() {
           _emps = newEmps;
+          _summary = data['summary'] is Map<String, dynamic>
+              ? Map<String, dynamic>.from(data['summary'] as Map)
+              : null;
           _isLoading = false;
         });
 
@@ -100,6 +108,54 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         _isLoading = false;
         _error = e.toString();
       });
+    }
+  }
+
+  Widget _buildStatColumn(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: Colors.black54)),
+      ],
+    );
+  }
+
+  Widget _buildStatTile(String label, String value) {
+    return SizedBox(
+      width: 72,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value,
+              textAlign: TextAlign.center,
+              style:
+                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String? status) {
+    final s = status?.toUpperCase() ?? '';
+    switch (s) {
+      case 'PP':
+      case 'P':
+        return Colors.green;
+      case 'PA':
+        return Colors.orange;
+      case 'AA':
+      case 'A':
+        return Colors.red;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -173,6 +229,116 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 onChanged: (v) => setState(() => _query = v),
               ),
             ),
+            if (_summary != null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12.0, vertical: 12.0),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final maxW = constraints.maxWidth;
+                        const dateW = 96.0;
+                        const spacing = 12.0;
+                        const statCount = 4;
+                        final available =
+                            maxW - dateW - spacing * (statCount - 1);
+                        final per = available / statCount;
+                        final useWrap = per < 64 || per.isNaN || per.isInfinite;
+
+                        if (useWrap) {
+                          return Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              _buildStatTile(
+                                  'Total',
+                                  _summary!['total_employees']?.toString() ??
+                                      '-'),
+                              _buildStatTile('Present',
+                                  _summary!['present']?.toString() ?? '-'),
+                              _buildStatTile('Absent',
+                                  _summary!['absent']?.toString() ?? '-'),
+                              _buildStatTile('Half',
+                                  _summary!['half_day']?.toString() ?? '-'),
+                              SizedBox(
+                                width: dateW,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      _summary!['date']?.toString() ?? '',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: Colors.black54),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text('Summary',
+                                        style: TextStyle(
+                                            color: Colors.grey[700],
+                                            fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+
+                        final statW = per;
+                        return Row(
+                          children: [
+                            SizedBox(
+                                width: statW,
+                                child: _buildStatTile(
+                                    'Total',
+                                    _summary!['total_employees']?.toString() ??
+                                        '-')),
+                            const SizedBox(width: spacing),
+                            SizedBox(
+                                width: statW,
+                                child: _buildStatTile('Present',
+                                    _summary!['present']?.toString() ?? '-')),
+                            const SizedBox(width: spacing),
+                            SizedBox(
+                                width: statW,
+                                child: _buildStatTile('Absent',
+                                    _summary!['absent']?.toString() ?? '-')),
+                            const SizedBox(width: spacing),
+                            SizedBox(
+                                width: statW,
+                                child: _buildStatTile('Half',
+                                    _summary!['half_day']?.toString() ?? '-')),
+                            const SizedBox(width: spacing),
+                            SizedBox(
+                              width: dateW,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    _summary!['date']?.toString() ?? '',
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.black54),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text('Summary',
+                                      style: TextStyle(
+                                          color: Colors.grey[700],
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: _isLoading && visible.isEmpty
                   ? ListView.builder(
@@ -233,6 +399,15 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                   final e = visible[idx];
                                   final name = (e['emp_name'] ?? '').toString();
                                   final code = (e['emp_code'] ?? '').toString();
+                                  final today = e['today_attendance']
+                                      as Map<String, dynamic>?;
+                                  final status = (today?['text_status'] ??
+                                          today?['att_status'])
+                                      ?.toString();
+                                  final firstIn =
+                                      today?['first_in_datetime']?.toString();
+                                  final lastOut =
+                                      today?['last_out_datetime']?.toString();
                                   return Card(
                                     child: ListTile(
                                       leading: CircleAvatar(
@@ -255,7 +430,75 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                                 fontWeight: FontWeight.bold)),
                                       ),
                                       title: Text(name),
-                                      subtitle: Text('Code: $code'),
+                                      subtitle: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text('Code: $code'),
+                                          const SizedBox(height: 6),
+                                          if (today != null)
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 4,
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: _statusColor(status)
+                                                        .withOpacity(0.15),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                  child: Text(status ?? '-',
+                                                      style: TextStyle(
+                                                          color: _statusColor(
+                                                              status),
+                                                          fontWeight:
+                                                              FontWeight.w600)),
+                                                ),
+                                                if (firstIn != null)
+                                                  ConstrainedBox(
+                                                    constraints: BoxConstraints(
+                                                        maxWidth: MediaQuery.of(
+                                                                    context)
+                                                                .size
+                                                                .width *
+                                                            0.5),
+                                                    child: Text(
+                                                      'In: ${firstIn.split('.').first}',
+                                                      style: const TextStyle(
+                                                          fontSize: 12),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                if (lastOut != null)
+                                                  ConstrainedBox(
+                                                    constraints: BoxConstraints(
+                                                        maxWidth: MediaQuery.of(
+                                                                    context)
+                                                                .size
+                                                                .width *
+                                                            0.5),
+                                                    child: Text(
+                                                      'Out: ${lastOut.split('.').first}',
+                                                      style: const TextStyle(
+                                                          fontSize: 12),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   );
                                 },

@@ -24,6 +24,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
   List<Map<String, dynamic>> _requests = [];
   String _selectedType = 'all';
   bool _canApproveAllEntities = false;
+  bool _hasReadPermission = true;
   // Map of rights parsed from stored user_rights JSON. Key: right key, Value: approve boolean
   Map<String, bool> _approveRights = {};
 
@@ -62,7 +63,14 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
 
   Future<void> _initRightsAndLoadRequests() async {
     await _loadUserRights();
-    await _loadRequests();
+    if (_hasReadPermission) {
+      await _loadRequests();
+    } else {
+      setState(() {
+        _isLoading = false;
+        _requests = [];
+      });
+    }
   }
 
   Future<void> _loadUserRights() async {
@@ -81,10 +89,12 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
               parsed[k.toString()] = false;
             }
           }
+          final bool readRight = perms.canRead('pending_request');
           setState(() {
             _approveRights = parsed;
             _canApproveAllEntities =
                 _approveRights.values.any((v) => v == true);
+            _hasReadPermission = readRight;
           });
           return;
         }
@@ -97,6 +107,7 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
       if (s.isNotEmpty) {
         final rights = json.decode(s) as Map<String, dynamic>;
         final Map<String, bool> parsed = {};
+        bool readRight = true;
         for (final k in rights.keys) {
           try {
             final v = rights[k];
@@ -106,21 +117,29 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
             parsed[k.toString()] = false;
           }
         }
+        // Extract read permission specifically for pending_request
+        final pr = rights['pending_request'];
+        if (pr is Map) {
+          readRight = _coerceToBool(pr['read']);
+        }
         setState(() {
           _approveRights = parsed;
           // show some approve actions if user has at least one approve right
           _canApproveAllEntities = _approveRights.values.any((v) => v == true);
+          _hasReadPermission = readRight;
         });
       } else {
         setState(() {
           _approveRights = {};
           _canApproveAllEntities = false;
+          _hasReadPermission = true;
         });
       }
     } catch (e) {
       setState(() {
         _approveRights = {};
         _canApproveAllEntities = false;
+        _hasReadPermission = true;
       });
     }
   }
@@ -1044,492 +1063,544 @@ class _PendingRequestScreenState extends State<PendingRequestScreen>
                                 ),
                               ),
                             ))
-                    : _error.isNotEmpty
+                    : !_hasReadPermission
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: [Center(child: Text('Error: $_error'))],
+                            children: const [
+                              Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(32),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.lock_outline,
+                                          size: 48, color: Colors.grey),
+                                      SizedBox(height: 12),
+                                      Text(
+                                        'You do not have permission to view Pending Requests.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           )
-                        : _filteredRequests.isEmpty
+                        : _error.isNotEmpty
                             ? ListView(
                                 physics: const AlwaysScrollableScrollPhysics(),
-                                children: const [
-                                  Center(child: Text('No pending requests'))
+                                children: [
+                                  Center(child: Text('Error: $_error'))
                                 ],
                               )
-                            : ListView.separated(
-                                padding: const EdgeInsets.all(12),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                itemCount: _filteredRequests.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (context, index) {
-                                  final r = _filteredRequests[index];
-                                  // stable key for this record (try common id fields)
-                                  final itemKey = (r['id'] ??
-                                          r['entity_endorsement_flow_details_id'] ??
-                                          r['entity_id'] ??
-                                          r['request_id'] ??
-                                          index)
-                                      .toString();
-                                  final isSwiped =
-                                      _swipedState[itemKey] == true;
-                                  // Build readable title/subtitle based on entity
-                                  String entity =
-                                      (r['entity_name'] ?? '').toString();
-                                  String displayTitle =
-                                      _typeOptions[entity] ?? 'Request';
-                                  String displaySubtitle = '';
-                                  String status =
-                                      (r['entity_approval_status'] ??
-                                              r['approval_status_name'] ??
-                                              '')
+                            : _filteredRequests.isEmpty
+                                ? ListView(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    children: const [
+                                      Center(child: Text('No pending requests'))
+                                    ],
+                                  )
+                                : ListView.separated(
+                                    padding: const EdgeInsets.all(12),
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    itemCount: _filteredRequests.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(height: 8),
+                                    itemBuilder: (context, index) {
+                                      final r = _filteredRequests[index];
+                                      // stable key for this record (try common id fields)
+                                      final itemKey = (r['id'] ??
+                                              r['entity_endorsement_flow_details_id'] ??
+                                              r['entity_id'] ??
+                                              r['request_id'] ??
+                                              index)
                                           .toString();
-                                  String dateStr =
-                                      (r['entity_endorsement_flow_details_created_at'] ??
-                                              r['action_taken_time'] ??
-                                              r['leave_application_date'] ??
-                                              r['miss_punch_application_date'] ??
-                                              '')
-                                          .toString();
+                                      final isSwiped =
+                                          _swipedState[itemKey] == true;
+                                      // Build readable title/subtitle based on entity
+                                      String entity =
+                                          (r['entity_name'] ?? '').toString();
+                                      String displayTitle =
+                                          _typeOptions[entity] ?? 'Request';
+                                      String displaySubtitle = '';
+                                      String status =
+                                          (r['entity_approval_status'] ??
+                                                  r['approval_status_name'] ??
+                                                  '')
+                                              .toString();
+                                      String dateStr =
+                                          (r['entity_endorsement_flow_details_created_at'] ??
+                                                  r['action_taken_time'] ??
+                                                  r['leave_application_date'] ??
+                                                  r['miss_punch_application_date'] ??
+                                                  '')
+                                              .toString();
 
-                                  String fmtDate(String raw) {
-                                    try {
-                                      final d = DateTime.tryParse(raw);
-                                      if (d == null) {
-                                        return raw.split(' ').first;
+                                      String fmtDate(String raw) {
+                                        try {
+                                          final d = DateTime.tryParse(raw);
+                                          if (d == null) {
+                                            return raw.split(' ').first;
+                                          }
+                                          return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
+                                        } catch (_) {
+                                          return raw;
+                                        }
                                       }
-                                      return '${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}';
-                                    } catch (_) {
-                                      return raw;
-                                    }
-                                  }
 
-                                  switch (entity) {
-                                    case 'leave_application':
-                                      final days = _getField(r, [
-                                        'leave_debit_leave_days',
-                                        'debit_leave_days',
-                                        'leave_debit_leave_days'
-                                      ]);
-                                      final ld = _getField(r, [
-                                        'leave_application_date',
-                                        'leave_application_created_at',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle =
-                                          '${days.isNotEmpty ? "$days day(s) • " : ''}${_typeOptions[entity] ?? 'Leave Application'}';
-                                      displaySubtitle =
-                                          fmtDate(ld.isNotEmpty ? ld : dateStr);
-                                      break;
-                                    case 'miss_punch':
-                                      final punchTime = _getField(r, [
-                                        'miss_punch_punch_time',
-                                        'miss_punch_punch_time'
-                                      ]);
-                                      final appDate = _getField(r, [
-                                        'miss_punch_application_date',
-                                        'action_taken_time'
-                                      ]);
-                                      final punchType = _getField(r, [
-                                        'miss_punch_punch_type_name',
-                                        'miss_punch_punch_type_key'
-                                      ]);
-                                      displayTitle =
-                                          '${_typeOptions[entity] ?? 'Miss Punch'}${punchType.isNotEmpty ? ' • $punchType' : ''}';
-                                      displaySubtitle = fmtDate(
-                                          punchTime.isNotEmpty
-                                              ? punchTime
-                                              : appDate);
-                                      break;
-                                    case 'manual_att':
-                                    case 'manual_attendance':
-                                      final inTime = _getField(
-                                          r, ['manual_att_in_time', 'in_time']);
-                                      final outTime = _getField(r,
-                                          ['manual_att_out_time', 'out_time']);
-                                      final appDate = _getField(r, [
-                                        'manual_att_application_date',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle = _typeOptions[entity] ??
-                                          'Manual Attendance';
-                                      displaySubtitle =
-                                          '${inTime.isNotEmpty ? inTime : ''}${inTime.isNotEmpty && outTime.isNotEmpty ? ' → ' : ''}${outTime.isNotEmpty ? outTime : fmtDate(appDate)}';
-                                      break;
-                                    case 'coff_application':
-                                      final coffDate = _getField(r, [
-                                        'coff_against_date',
-                                        'coff_application_date',
-                                        'coff_from_date'
-                                      ]);
-                                      displayTitle = _typeOptions[entity] ??
-                                          'C-off Application';
-                                      displaySubtitle = fmtDate(coffDate);
-                                      break;
-                                    case 'overtime_apply':
-                                      final mins = _getField(r, [
-                                        'overtime_duration_minutes',
-                                        'overtime_minutes'
-                                      ]);
-                                      final otDate = _getField(r, [
-                                        'overtime_ot_application_date',
-                                        'overtime_date',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle =
-                                          _typeOptions[entity] ?? 'Overtime';
-                                      displaySubtitle = mins.isNotEmpty
-                                          ? '$mins min'
-                                          : fmtDate(otDate.isNotEmpty
-                                              ? otDate
-                                              : dateStr);
-                                      break;
-                                    case 'shift_application':
-                                      final sApp = _getField(r, [
-                                        'shift_application_date',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle = _typeOptions[entity] ??
-                                          'Shift Change';
-                                      displaySubtitle = fmtDate(
-                                          sApp.isNotEmpty ? sApp : dateStr);
-                                      break;
-                                    case 'short_leave_application':
-                                      final sApp = _getField(r, [
-                                        'short_leave_application_date',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle =
-                                          _typeOptions[entity] ?? 'Short Leave';
-                                      displaySubtitle = fmtDate(
-                                          sApp.isNotEmpty ? sApp : dateStr);
-                                      break;
-                                    case 'od_leave_application':
-                                      final oApp = _getField(r, [
-                                        'od_leave_application_date',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle =
-                                          _typeOptions[entity] ?? 'Out Duty';
-                                      displaySubtitle = fmtDate(
-                                          oApp.isNotEmpty ? oApp : dateStr);
-                                      break;
-                                    case 'wo_application':
-                                      final wApp = _getField(r, [
-                                        'wo_application_date',
-                                        'action_taken_time'
-                                      ]);
-                                      displayTitle = _typeOptions[entity] ??
-                                          'Weekly Off Change';
-                                      displaySubtitle = fmtDate(
-                                          wApp.isNotEmpty ? wApp : dateStr);
-                                      break;
-                                    default:
-                                      displayTitle = _typeOptions[entity] ??
-                                          (entity.isNotEmpty
-                                              ? entity
-                                              : 'Request');
-                                      displaySubtitle = fmtDate(dateStr);
-                                  }
+                                      switch (entity) {
+                                        case 'leave_application':
+                                          final days = _getField(r, [
+                                            'leave_debit_leave_days',
+                                            'debit_leave_days',
+                                            'leave_debit_leave_days'
+                                          ]);
+                                          final ld = _getField(r, [
+                                            'leave_application_date',
+                                            'leave_application_created_at',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle =
+                                              '${days.isNotEmpty ? "$days day(s) • " : ''}${_typeOptions[entity] ?? 'Leave Application'}';
+                                          displaySubtitle = fmtDate(
+                                              ld.isNotEmpty ? ld : dateStr);
+                                          break;
+                                        case 'miss_punch':
+                                          final punchTime = _getField(r, [
+                                            'miss_punch_punch_time',
+                                            'miss_punch_punch_time'
+                                          ]);
+                                          final appDate = _getField(r, [
+                                            'miss_punch_application_date',
+                                            'action_taken_time'
+                                          ]);
+                                          final punchType = _getField(r, [
+                                            'miss_punch_punch_type_name',
+                                            'miss_punch_punch_type_key'
+                                          ]);
+                                          displayTitle =
+                                              '${_typeOptions[entity] ?? 'Miss Punch'}${punchType.isNotEmpty ? ' • $punchType' : ''}';
+                                          displaySubtitle = fmtDate(
+                                              punchTime.isNotEmpty
+                                                  ? punchTime
+                                                  : appDate);
+                                          break;
+                                        case 'manual_att':
+                                        case 'manual_attendance':
+                                          final inTime = _getField(r, [
+                                            'manual_att_in_time',
+                                            'in_time'
+                                          ]);
+                                          final outTime = _getField(r, [
+                                            'manual_att_out_time',
+                                            'out_time'
+                                          ]);
+                                          final appDate = _getField(r, [
+                                            'manual_att_application_date',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'Manual Attendance';
+                                          displaySubtitle =
+                                              '${inTime.isNotEmpty ? inTime : ''}${inTime.isNotEmpty && outTime.isNotEmpty ? ' → ' : ''}${outTime.isNotEmpty ? outTime : fmtDate(appDate)}';
+                                          break;
+                                        case 'coff_application':
+                                          final coffDate = _getField(r, [
+                                            'coff_against_date',
+                                            'coff_application_date',
+                                            'coff_from_date'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'C-off Application';
+                                          displaySubtitle = fmtDate(coffDate);
+                                          break;
+                                        case 'overtime_apply':
+                                          final mins = _getField(r, [
+                                            'overtime_duration_minutes',
+                                            'overtime_minutes'
+                                          ]);
+                                          final otDate = _getField(r, [
+                                            'overtime_ot_application_date',
+                                            'overtime_date',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'Overtime';
+                                          displaySubtitle = mins.isNotEmpty
+                                              ? '$mins min'
+                                              : fmtDate(otDate.isNotEmpty
+                                                  ? otDate
+                                                  : dateStr);
+                                          break;
+                                        case 'shift_application':
+                                          final sApp = _getField(r, [
+                                            'shift_application_date',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'Shift Change';
+                                          displaySubtitle = fmtDate(
+                                              sApp.isNotEmpty ? sApp : dateStr);
+                                          break;
+                                        case 'short_leave_application':
+                                          final sApp = _getField(r, [
+                                            'short_leave_application_date',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'Short Leave';
+                                          displaySubtitle = fmtDate(
+                                              sApp.isNotEmpty ? sApp : dateStr);
+                                          break;
+                                        case 'od_leave_application':
+                                          final oApp = _getField(r, [
+                                            'od_leave_application_date',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'Out Duty';
+                                          displaySubtitle = fmtDate(
+                                              oApp.isNotEmpty ? oApp : dateStr);
+                                          break;
+                                        case 'wo_application':
+                                          final wApp = _getField(r, [
+                                            'wo_application_date',
+                                            'action_taken_time'
+                                          ]);
+                                          displayTitle = _typeOptions[entity] ??
+                                              'Weekly Off Change';
+                                          displaySubtitle = fmtDate(
+                                              wApp.isNotEmpty ? wApp : dateStr);
+                                          break;
+                                        default:
+                                          displayTitle = _typeOptions[entity] ??
+                                              (entity.isNotEmpty
+                                                  ? entity
+                                                  : 'Request');
+                                          displaySubtitle = fmtDate(dateStr);
+                                      }
 
-                                  IconData icon = Icons.list;
-                                  Color iconColor = Colors.teal;
-                                  if (entity == 'leave_application') {
-                                    icon = Icons.beach_access;
-                                    iconColor = Colors.blue;
-                                  } else if (entity == 'miss_punch') {
-                                    icon = Icons.access_time;
-                                    iconColor = Colors.orange;
-                                  } else if (entity == 'manual_att' ||
-                                      entity == 'manual_attendance') {
-                                    icon = Icons.edit_calendar;
-                                    iconColor = Colors.green;
-                                  } else if (entity == 'coff_application') {
-                                    icon = Icons.calendar_today;
-                                    iconColor = Colors.purple;
-                                  } else if (entity == 'overtime_apply') {
-                                    icon = Icons.timer;
-                                    iconColor = Colors.indigo;
-                                  }
+                                      IconData icon = Icons.list;
+                                      Color iconColor = Colors.teal;
+                                      if (entity == 'leave_application') {
+                                        icon = Icons.beach_access;
+                                        iconColor = Colors.blue;
+                                      } else if (entity == 'miss_punch') {
+                                        icon = Icons.access_time;
+                                        iconColor = Colors.orange;
+                                      } else if (entity == 'manual_att' ||
+                                          entity == 'manual_attendance') {
+                                        icon = Icons.edit_calendar;
+                                        iconColor = Colors.green;
+                                      } else if (entity == 'coff_application') {
+                                        icon = Icons.calendar_today;
+                                        iconColor = Colors.purple;
+                                      } else if (entity == 'overtime_apply') {
+                                        icon = Icons.timer;
+                                        iconColor = Colors.indigo;
+                                      }
 
-                                  // stack with background action bar revealed when card slides left
-                                  return Stack(
-                                    children: [
-                                      // background action bar (right side)
-                                      Positioned.fill(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              // checkbox
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white,
-                                                  borderRadius:
-                                                      BorderRadius.circular(8),
-                                                ),
-                                                child: Checkbox(
-                                                  value: _selectedItems
-                                                      .contains(itemKey),
-                                                  onChanged: (v) {
-                                                    setState(() {
-                                                      if (v == true) {
-                                                        _selectedItems
-                                                            .add(itemKey);
-                                                      } else {
-                                                        _selectedItems
-                                                            .remove(itemKey);
-                                                      }
-
-                                                      // When at least one item is selected, reveal actions
-                                                      // for all visible items. When none selected,
-                                                      // hide actions again.
-                                                      if (_selectedItems
-                                                          .isNotEmpty) {
-                                                        for (int j = 0;
-                                                            j <
-                                                                _filteredRequests
-                                                                    .length;
-                                                            j++) {
-                                                          final r2 =
-                                                              _filteredRequests[
-                                                                  j];
-                                                          final k2 = (r2[
-                                                                      'id'] ??
-                                                                  r2['entity_endorsement_flow_details_id'] ??
-                                                                  r2['entity_id'] ??
-                                                                  r2['request_id'] ??
-                                                                  j)
-                                                              .toString();
-                                                          _swipedState[k2] =
-                                                              true;
-                                                        }
-                                                      } else {
-                                                        // clear swipe state (all closed)
-                                                        _swipedState.clear();
-                                                      }
-                                                    });
-                                                  },
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              // view: open detailed screen for known entities
-                                              Container(
-                                                decoration: const BoxDecoration(
-                                                    color: Colors.white,
-                                                    shape: BoxShape.circle),
-                                                child: IconButton(
-                                                  icon: Icon(
-                                                    Icons.remove_red_eye,
-                                                    color: _selectedItems
-                                                            .contains(itemKey)
-                                                        ? Colors.grey
-                                                        : Colors.black54,
-                                                    size: 20,
-                                                  ),
-                                                  onPressed: _selectedItems
-                                                          .contains(itemKey)
-                                                      ? null
-                                                      : () async {
-                                                          FocusScope.of(context)
-                                                              .unfocus();
-                                                          // Open a generic, dynamic detail view
-                                                          Navigator.of(context).push(
-                                                              MaterialPageRoute(
-                                                                  builder: (_) =>
-                                                                      GenericRequestDetailScreen(
-                                                                        record:
-                                                                            r,
-                                                                        title:
-                                                                            displayTitle,
-                                                                      )));
-                                                        },
-                                                ),
-                                              ),
-                                              // approve (show when user has approve right for this entity)
-                                              if (_approveRights.isEmpty ||
-                                                  _hasApproveForEntity(
-                                                      entity)) ...[
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  decoration: BoxDecoration(
-                                                      color: Colors.green[50],
-                                                      shape: BoxShape.circle),
-                                                  child: IconButton(
-                                                    icon: Icon(
-                                                      Icons.check,
-                                                      color: _selectedItems
-                                                              .contains(itemKey)
-                                                          ? Colors.grey
-                                                          : Colors.green,
-                                                      size: 20,
-                                                    ),
-                                                    onPressed: _selectedItems
-                                                            .contains(itemKey)
-                                                        ? null
-                                                        : () {
-                                                            _approveSingle(
-                                                                itemKey,
-                                                                r,
-                                                                displayTitle);
-                                                          },
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                              ],
-                                              // reject
-                                              Container(
-                                                decoration: BoxDecoration(
-                                                    color: Colors.red[50],
-                                                    shape: BoxShape.circle),
-                                                child: IconButton(
-                                                  icon: Icon(
-                                                    Icons.close,
-                                                    color: _selectedItems
-                                                            .contains(itemKey)
-                                                        ? Colors.grey
-                                                        : Colors.red,
-                                                    size: 20,
-                                                  ),
-                                                  onPressed: _selectedItems
-                                                          .contains(itemKey)
-                                                      ? null
-                                                      : () {
-                                                          _rejectSingle(itemKey,
-                                                              r, displayTitle);
-                                                        },
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-
-                                      // foreground card that slides left to reveal actions
-                                      AnimatedSlide(
-                                        // slide to 80% left (not fully offscreen)
-                                        offset: isSwiped
-                                            ? const Offset(-0.8, 0)
-                                            : Offset.zero,
-                                        duration: _swipeDuration,
-                                        curve: Curves.easeInOut,
-                                        child: GestureDetector(
-                                          behavior: HitTestBehavior.opaque,
-                                          onTap: () async {
-                                            final currently =
-                                                _swipedState[itemKey] == true;
-                                            setState(() {
-                                              if (!currently) {
-                                                // Open this item and close any others
-                                                _swipedState.clear();
-                                                _swipedState[itemKey] = true;
-                                              } else {
-                                                // Close this item
-                                                _swipedState[itemKey] = false;
-                                              }
-                                            });
-                                            // wait for animation to finish
-                                            await Future.delayed(
-                                                _swipeDuration);
-                                            // Intentionally do not show a SnackBar/toast
-                                            // when an item is swiped. Silent reveal only.
-                                          },
-                                          child: Card(
-                                            elevation: 0,
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(10)),
-                                            child: Padding(
+                                      // stack with background action bar revealed when card slides left
+                                      return Stack(
+                                        children: [
+                                          // background action bar (right side)
+                                          Positioned.fill(
+                                            child: Container(
                                               padding:
-                                                  const EdgeInsets.all(12.0),
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 12),
                                               child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.end,
                                                 children: [
-                                                  CircleAvatar(
-                                                    radius: 20,
-                                                    backgroundColor: iconColor
-                                                        .withOpacity(0.12),
-                                                    child: Icon(icon,
-                                                        color: iconColor,
-                                                        size: 18),
+                                                  // checkbox
+                                                  Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                    ),
+                                                    child: Checkbox(
+                                                      value: _selectedItems
+                                                          .contains(itemKey),
+                                                      onChanged: (v) {
+                                                        setState(() {
+                                                          if (v == true) {
+                                                            _selectedItems
+                                                                .add(itemKey);
+                                                          } else {
+                                                            _selectedItems
+                                                                .remove(
+                                                                    itemKey);
+                                                          }
+
+                                                          // When at least one item is selected, reveal actions
+                                                          // for all visible items. When none selected,
+                                                          // hide actions again.
+                                                          if (_selectedItems
+                                                              .isNotEmpty) {
+                                                            for (int j = 0;
+                                                                j <
+                                                                    _filteredRequests
+                                                                        .length;
+                                                                j++) {
+                                                              final r2 =
+                                                                  _filteredRequests[
+                                                                      j];
+                                                              final k2 = (r2[
+                                                                          'id'] ??
+                                                                      r2['entity_endorsement_flow_details_id'] ??
+                                                                      r2['entity_id'] ??
+                                                                      r2['request_id'] ??
+                                                                      j)
+                                                                  .toString();
+                                                              _swipedState[k2] =
+                                                                  true;
+                                                            }
+                                                          } else {
+                                                            // clear swipe state (all closed)
+                                                            _swipedState
+                                                                .clear();
+                                                          }
+                                                        });
+                                                      },
+                                                    ),
                                                   ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Text(
-                                                                  displayTitle,
-                                                                  style: const TextStyle(
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w700)),
-                                                            ),
-                                                            if (status
-                                                                .isNotEmpty) ...[
-                                                              Container(
-                                                                padding: const EdgeInsets
-                                                                    .symmetric(
-                                                                    horizontal:
-                                                                        8,
-                                                                    vertical:
-                                                                        4),
-                                                                decoration:
-                                                                    BoxDecoration(
-                                                                  color: Colors
-                                                                      .grey
-                                                                      .shade100,
-                                                                  borderRadius:
-                                                                      BorderRadius
-                                                                          .circular(
-                                                                              12),
-                                                                ),
-                                                                child: Text(
-                                                                    status,
-                                                                    style: const TextStyle(
-                                                                        fontSize:
-                                                                            12,
-                                                                        color: Colors
-                                                                            .black54)),
-                                                              )
-                                                            ]
-                                                          ],
+                                                  const SizedBox(width: 8),
+                                                  // view: open detailed screen for known entities
+                                                  Container(
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                            color: Colors.white,
+                                                            shape: BoxShape
+                                                                .circle),
+                                                    child: IconButton(
+                                                      icon: Icon(
+                                                        Icons.remove_red_eye,
+                                                        color: _selectedItems
+                                                                .contains(
+                                                                    itemKey)
+                                                            ? Colors.grey
+                                                            : Colors.black54,
+                                                        size: 20,
+                                                      ),
+                                                      onPressed:
+                                                          _selectedItems
+                                                                  .contains(
+                                                                      itemKey)
+                                                              ? null
+                                                              : () async {
+                                                                  FocusScope.of(
+                                                                          context)
+                                                                      .unfocus();
+                                                                  // Open a generic, dynamic detail view
+                                                                  Navigator.of(
+                                                                          context)
+                                                                      .push(MaterialPageRoute(
+                                                                          builder: (_) => GenericRequestDetailScreen(
+                                                                                record: r,
+                                                                                title: displayTitle,
+                                                                              )));
+                                                                },
+                                                    ),
+                                                  ),
+                                                  // approve (show when user has approve right for this entity)
+                                                  if (_approveRights.isEmpty ||
+                                                      _hasApproveForEntity(
+                                                          entity)) ...[
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      decoration: BoxDecoration(
+                                                          color:
+                                                              Colors.green[50],
+                                                          shape:
+                                                              BoxShape.circle),
+                                                      child: IconButton(
+                                                        icon: Icon(
+                                                          Icons.check,
+                                                          color: _selectedItems
+                                                                  .contains(
+                                                                      itemKey)
+                                                              ? Colors.grey
+                                                              : Colors.green,
+                                                          size: 20,
                                                         ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                          displaySubtitle
-                                                                  .isNotEmpty
-                                                              ? displaySubtitle
-                                                              : '-',
-                                                          style:
-                                                              const TextStyle(
-                                                                  color: Colors
-                                                                      .grey),
-                                                          maxLines: 2,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                        ),
-                                                      ],
+                                                        onPressed:
+                                                            _selectedItems
+                                                                    .contains(
+                                                                        itemKey)
+                                                                ? null
+                                                                : () {
+                                                                    _approveSingle(
+                                                                        itemKey,
+                                                                        r,
+                                                                        displayTitle);
+                                                                  },
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                  ],
+                                                  // reject
+                                                  Container(
+                                                    decoration: BoxDecoration(
+                                                        color: Colors.red[50],
+                                                        shape: BoxShape.circle),
+                                                    child: IconButton(
+                                                      icon: Icon(
+                                                        Icons.close,
+                                                        color: _selectedItems
+                                                                .contains(
+                                                                    itemKey)
+                                                            ? Colors.grey
+                                                            : Colors.red,
+                                                        size: 20,
+                                                      ),
+                                                      onPressed: _selectedItems
+                                                              .contains(itemKey)
+                                                          ? null
+                                                          : () {
+                                                              _rejectSingle(
+                                                                  itemKey,
+                                                                  r,
+                                                                  displayTitle);
+                                                            },
                                                     ),
                                                   ),
                                                 ],
                                               ),
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
+
+                                          // foreground card that slides left to reveal actions
+                                          AnimatedSlide(
+                                            // slide to 80% left (not fully offscreen)
+                                            offset: isSwiped
+                                                ? const Offset(-0.8, 0)
+                                                : Offset.zero,
+                                            duration: _swipeDuration,
+                                            curve: Curves.easeInOut,
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.opaque,
+                                              onTap: () async {
+                                                final currently =
+                                                    _swipedState[itemKey] ==
+                                                        true;
+                                                setState(() {
+                                                  if (!currently) {
+                                                    // Open this item and close any others
+                                                    _swipedState.clear();
+                                                    _swipedState[itemKey] =
+                                                        true;
+                                                  } else {
+                                                    // Close this item
+                                                    _swipedState[itemKey] =
+                                                        false;
+                                                  }
+                                                });
+                                                // wait for animation to finish
+                                                await Future.delayed(
+                                                    _swipeDuration);
+                                                // Intentionally do not show a SnackBar/toast
+                                                // when an item is swiped. Silent reveal only.
+                                              },
+                                              child: Card(
+                                                elevation: 0,
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10)),
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                      12.0),
+                                                  child: Row(
+                                                    children: [
+                                                      CircleAvatar(
+                                                        radius: 20,
+                                                        backgroundColor:
+                                                            iconColor
+                                                                .withOpacity(
+                                                                    0.12),
+                                                        child: Icon(icon,
+                                                            color: iconColor,
+                                                            size: 18),
+                                                      ),
+                                                      const SizedBox(width: 12),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Row(
+                                                              children: [
+                                                                Expanded(
+                                                                  child: Text(
+                                                                      displayTitle,
+                                                                      style: const TextStyle(
+                                                                          fontWeight:
+                                                                              FontWeight.w700)),
+                                                                ),
+                                                                if (status
+                                                                    .isNotEmpty) ...[
+                                                                  Container(
+                                                                    padding: const EdgeInsets
+                                                                        .symmetric(
+                                                                        horizontal:
+                                                                            8,
+                                                                        vertical:
+                                                                            4),
+                                                                    decoration:
+                                                                        BoxDecoration(
+                                                                      color: Colors
+                                                                          .grey
+                                                                          .shade100,
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                              12),
+                                                                    ),
+                                                                    child: Text(
+                                                                        status,
+                                                                        style: const TextStyle(
+                                                                            fontSize:
+                                                                                12,
+                                                                            color:
+                                                                                Colors.black54)),
+                                                                  )
+                                                                ]
+                                                              ],
+                                                            ),
+                                                            const SizedBox(
+                                                                height: 6),
+                                                            Text(
+                                                              displaySubtitle
+                                                                      .isNotEmpty
+                                                                  ? displaySubtitle
+                                                                  : '-',
+                                                              style: const TextStyle(
+                                                                  color: Colors
+                                                                      .grey),
+                                                              maxLines: 2,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
               )
             ],
           ),

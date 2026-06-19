@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:easytime_online/services/permissions_provider.dart';
+import 'package:easytime_online/data_storage_service.dart';
 import 'dart:async'; // Added for Timer
 
 // Utility class to hide system navigation bar
@@ -714,7 +715,19 @@ class _HomeScreenState extends State<HomeScreen> {
               } catch (_) {}
             }
             userData['user_rights'] = ur;
-            await prefs.setString('user_rights_json', jsonEncode(ur));
+            // Log what we are saving for debugging permission inconsistencies
+            try {
+              final serialized = jsonEncode(ur);
+              print('LOGIN-DEBUG saving user_rights_json: $serialized');
+              await prefs.setString('user_rights_json', serialized);
+              // Also use DataStorageService helper to centralize saving
+              try {
+                await DataStorageService.saveUserRights(
+                    Map<String, dynamic>.from(ur as Map));
+              } catch (_) {}
+            } catch (e) {
+              print('LOGIN-DEBUG error saving user_rights_json: $e');
+            }
 
             // Update global permissions provider if available
             try {

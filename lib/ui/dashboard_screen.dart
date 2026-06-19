@@ -60,6 +60,13 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _allowMobilePunch = false;
   bool _isMobilePunchRequiresApprover = false;
 
+  // Per-module read permissions — loaded from SharedPreferences in initState.
+  // Default to true (show enabled) until we have confirmed rights data.
+  bool _canReadLeave = true;
+  bool _canReadPendingRequest = true;
+  bool _canReadManualPunch = true;
+  bool _canReadManualAttendance = true;
+
   // Add state variables for work hours
   String _monthlyWorkHours = "0.0";
   bool _isLoadingMonthlyWorkHours = false;
@@ -115,6 +122,36 @@ class _DashboardScreenState extends State<DashboardScreen>
     ));
 
     _tabController = TabController(length: 2, vsync: this);
+
+    // ── Permission flags ──────────────────────────────────────────────────
+    // 1. Try to read synchronously from widget.userData['user_rights'].
+    //    main.dart sets this key on userData before navigating here, so it
+    //    is available on the very first frame — no async gap, no flash.
+    bool _syncLoaded = false;
+    try {
+      final dynamic ur = widget.userData?['user_rights'];
+      if (ur is Map && ur.isNotEmpty) {
+        bool _rp(String key) {
+          final val = ur[key];
+          if (val is Map && val.containsKey('read')) {
+            return _coerceToBool(val['read']);
+          }
+          return true;
+        }
+
+        _canReadLeave = _rp('leave_application');
+        _canReadPendingRequest = _rp('pending_request');
+        _canReadManualPunch = _rp('manual_punch');
+        _canReadManualAttendance = _rp('manual_attendance');
+        _syncLoaded = true;
+      }
+    } catch (_) {}
+
+    // 2. Async fallback: if userData didn't carry user_rights (e.g. cold
+    //    start / session restore), read from SharedPreferences.
+    if (!_syncLoaded) {
+      _loadModuleReadPermissions();
+    }
 
     try {
       // Try to log full userData structure for debugging
@@ -799,6 +836,37 @@ class _DashboardScreenState extends State<DashboardScreen>
       return low == '1' || low == 'true' || low == 'yes';
     }
     return false;
+  }
+
+  /// Reads 'user_rights_json' from SharedPreferences (written by main.dart
+  /// immediately after a successful login) and sets the per-module read
+  /// permission flags used by _buildProjectsTab.
+  Future<void> _loadModuleReadPermissions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final s = prefs.getString('user_rights_json') ?? '';
+      if (s.isEmpty) return;
+
+      final dynamic decoded = json.decode(s);
+      if (decoded is! Map) return;
+
+      bool _readPerm(String key) {
+        final val = decoded[key];
+        if (val is Map && val.containsKey('read')) {
+          return _coerceToBool(val['read']);
+        }
+        return true; // key absent → treat as allowed
+      }
+
+      if (mounted) {
+        setState(() {
+          _canReadLeave = _readPerm('leave_application');
+          _canReadPendingRequest = _readPerm('pending_request');
+          _canReadManualPunch = _readPerm('manual_punch');
+          _canReadManualAttendance = _readPerm('manual_attendance');
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -2550,42 +2618,59 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildProjectsTab() {
-    // Shortcut action cards in a 2x2 grid for the Applications tab
-    final perms = Provider.of<PermissionsProvider>(context, listen: true);
-    final List<Map<String, Object>> actions = [];
+    // Shortcut action cards in a 2x2 grid for the Applications tab.
+    // Always show all four tiles; grey them out when read = false.
+    // Permission flags are loaded from SharedPreferences in initState via
+    // _loadModuleReadPermissions() and stored in individual state variables.
 
-    // Add tiles only if the user has read permission for that entity.
-    // If permissions are not loaded yet, default to showing tiles.
-    bool rightsLoaded = perms.hasAnyRights;
+    // If PermissionsProvider has loaded rights, prefer it so UI updates dynamically.
+    bool useProvider = false;
+    try {
+      final perms = Provider.of<PermissionsProvider>(context);
+      useProvider = perms.hasAnyRights;
+    } catch (_) {
+      useProvider = false;
+    }
 
-    if (!rightsLoaded || perms.canRead('leave_application')) {
-      actions.add({
+    final bool canReadLeave = useProvider
+        ? Provider.of<PermissionsProvider>(context).canRead('leave_application')
+        : _canReadLeave;
+    final bool canReadPending = useProvider
+        ? Provider.of<PermissionsProvider>(context).canRead('pending_request')
+        : _canReadPendingRequest;
+    final bool canReadManualPunch = useProvider
+        ? Provider.of<PermissionsProvider>(context).canRead('manual_punch')
+        : _canReadManualPunch;
+    final bool canReadManualAtt = useProvider
+        ? Provider.of<PermissionsProvider>(context).canRead('manual_attendance')
+        : _canReadManualAttendance;
+
+    final List<Map<String, Object>> actions = [
+      {
         'title': 'Leave Application',
         'icon': Icons.beach_access,
         'color': Colors.blue,
-      });
-    }
-    if (!rightsLoaded || perms.canRead('pending_request')) {
-      actions.add({
+        'enabled': canReadLeave,
+      },
+      {
         'title': 'Pending Request',
         'icon': Icons.pending_actions,
         'color': Colors.teal,
-      });
-    }
-    if (!rightsLoaded || perms.canRead('manual_punch')) {
-      actions.add({
+        'enabled': canReadPending,
+      },
+      {
         'title': 'Manual Punch',
         'icon': Icons.edit,
         'color': Colors.orange,
-      });
-    }
-    if (!rightsLoaded || perms.canRead('manual_attendance')) {
-      actions.add({
+        'enabled': canReadManualPunch,
+      },
+      {
         'title': 'Manual Attendance',
         'icon': Icons.history_toggle_off,
         'color': Colors.green,
-      });
-    }
+        'enabled': canReadManualAtt,
+      },
+    ];
 
     return GridView.builder(
       padding: const EdgeInsets.all(16),
@@ -2600,93 +2685,164 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
       itemBuilder: (context, index) {
         final item = actions[index];
-        return InkWell(
-          onTap: () async {
-            final title = item['title'] as String;
-            if (title == 'Leave Application') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        LeaveApplicationScreen(empKey: widget.empKey)),
-              );
-              return;
-            }
-            if (title == 'Pending Request') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        PendingRequestScreen(empKey: widget.empKey)),
-              );
-              return;
-            }
-            if (title == 'Manual Punch') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        ManualPunchListScreen(empKey: widget.empKey)),
-              );
-              return;
-            }
-            if (title == 'Manual Attendance') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        ManualAttendanceListScreen(empKey: widget.empKey)),
-              );
-              return;
-            }
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Open: $title')),
-            );
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(8),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+        final bool enabled = item['enabled'] as bool;
+        final Color tileColor = item['color'] as Color;
+        final Color effectiveColor = enabled ? tileColor : Colors.grey;
+
+        return Tooltip(
+          message: enabled ? '' : 'You don\'t have access to ${item['title']}',
+          child: InkWell(
+            onTap: enabled
+                ? () async {
+                    final title = item['title'] as String;
+                    // Resolve permission key from title (e.g. 'Leave Application' -> 'leave_application')
+                    final permissionKey =
+                        title.toLowerCase().replaceAll(' ', '_');
+
+                    // 1) Check SharedPreferences-stored rights to defensively block navigation
+                    try {
+                      final allowedPref =
+                          await DataStorageService.canReadModule(permissionKey);
+                      foundation.debugPrint(
+                          'PERM-DEBUG(pref): $permissionKey -> $allowedPref');
+                      if (!allowedPref) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Permission denied: $title'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+                    } catch (e) {
+                      foundation.debugPrint('PERM-DEBUG(pref) error: $e');
+                    }
+
+                    // 2) Also check Provider if it has rights loaded (preference is authoritative)
+                    try {
+                      final perms = Provider.of<PermissionsProvider>(context,
+                          listen: false);
+                      if (perms.hasAnyRights) {
+                        final allowedProv = perms.canRead(permissionKey);
+                        foundation.debugPrint(
+                            'PERM-DEBUG(prov): $permissionKey -> $allowedProv');
+                        if (!allowedProv) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Permission denied: $title'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                          return;
+                        }
+                      }
+                    } catch (_) {}
+                    if (title == 'Leave Application') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                LeaveApplicationScreen(empKey: widget.empKey)),
+                      );
+                      return;
+                    }
+                    if (title == 'Pending Request') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                PendingRequestScreen(empKey: widget.empKey)),
+                      );
+                      return;
+                    }
+                    if (title == 'Manual Punch') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                ManualPunchListScreen(empKey: widget.empKey)),
+                      );
+                      return;
+                    }
+                    if (title == 'Manual Attendance') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => ManualAttendanceListScreen(
+                                empKey: widget.empKey)),
+                      );
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Open: ${item['title']}')),
+                    );
+                  }
+                : null, // disabled — absorbs no tap
+            borderRadius: BorderRadius.circular(12),
+            child: Opacity(
+              opacity: enabled ? 1.0 : 0.45,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: !enabled
+                      ? Border.all(color: Colors.grey.withAlpha(50), width: 1)
+                      : null,
+                  boxShadow: enabled
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(8),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : [],
                 ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: (item['color'] as Color).withAlpha(30),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    item['icon'] as IconData,
-                    color: item['color'] as Color,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: Text(
-                    item['title'] as String,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: effectiveColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        item['icon'] as IconData,
+                        color: effectiveColor,
+                        size: 28,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: Text(
+                        item['title'] as String,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color:
+                              enabled ? const Color(0xFF333333) : Colors.grey,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (!enabled) ...[
+                      const SizedBox(height: 4),
+                      const Text(
+                        'No Access',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );

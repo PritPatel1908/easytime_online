@@ -67,14 +67,32 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen>
 
   Future<void> _initRightsAndLoad() async {
     await _loadUserRights();
-    if (_hasReadPermission) {
-      await _loadApplications();
-    } else {
+    if (!_hasReadPermission) {
+      // Defensive: if the user lacks read permission, close this screen
+      // immediately to prevent other entry points from exposing data.
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content:
+                  Text('Permission denied: cannot view leave applications'),
+              backgroundColor: Colors.red,
+            ));
+          } catch (_) {}
+          try {
+            Navigator.of(context).pop();
+          } catch (_) {}
+        });
+      }
       setState(() {
         _isLoading = false;
         _applications = [];
       });
+      return;
     }
+
+    // If allowed, load applications
+    await _loadApplications();
   }
 
   Future<void> _loadUserRights() async {
